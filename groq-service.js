@@ -54,9 +54,10 @@ async function transcribeAudio(audioBuffer) {
 /**
  * Get AI response using Groq's gpt-oss-120b model
  * @param {string} prompt - The prompt to send to the AI
+ * @param {Array} conversationHistory - Previous conversation messages
  * @returns {Promise<string>} AI-generated response
  */
-async function getAIResponse(prompt) {
+async function getAIResponse(prompt, conversationHistory = []) {
   try {
     console.log('Getting AI response with Groq gpt-oss-120b model...');
     
@@ -71,17 +72,25 @@ async function getAIResponse(prompt) {
     // Determine appropriate max_tokens based on question complexity
     const maxTokens = determineAppropriateLength(truncatedPrompt);
     
+    // Build messages array with conversation history
+    const messages = [
+      {
+        role: "system",
+        content: "You are an interview helper providing complete answers that candidates can read out loud to interviewers. Your responses should be formatted as spoken answers for job interviews. Structure responses clearly with a beginning, middle, and end that flows naturally when spoken aloud. For brief questions, provide 1-2 complete sentences. For complex questions, provide 3-5 complete sentences. Always ensure your responses end with complete sentences and proper punctuation. Focus on demonstrating relevant skills and experiences with specific examples. If provided with resume and job description context, tailor responses to be relevant to the job and candidate. When responding to 'Tell me about yourself', provide a complete 30-60 second professional summary covering background, key skills, and value proposition with a clear beginning, middle, and end. Use natural speaking language, not written text. Include verbal cues like 'First', 'Next', 'Finally' to help with flow. Avoid jargon and be specific with examples. Maintain a confident, authentic tone suitable for job interviews. Structure answers to be easily spoken aloud with appropriate pauses and emphasis. Never cut off responses mid-sentence. Always provide complete, well-structured answers that candidates can confidently read aloud. You have access to the conversation history to provide contextually relevant responses to follow-up questions."
+      }
+    ];
+    
+    // Add conversation history
+    messages.push(...conversationHistory);
+    
+    // Add the current prompt
+    messages.push({
+      role: "user",
+      content: truncatedPrompt
+    });
+    
     const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are an interview helper providing complete answers that candidates can read out loud to interviewers. Your responses should be formatted as spoken answers for job interviews. Structure responses clearly with a beginning, middle, and end that flows naturally when spoken aloud. For brief questions, provide 1-2 complete sentences. For complex questions, provide 3-5 complete sentences. Always ensure your responses end with complete sentences and proper punctuation. Focus on demonstrating relevant skills and experiences with specific examples. If provided with resume and job description context, tailor responses to be relevant to the job and candidate. When responding to 'Tell me about yourself', provide a complete 30-60 second professional summary covering background, key skills, and value proposition with a clear beginning, middle, and end. Use natural speaking language, not written text. Include verbal cues like 'First', 'Next', 'Finally' to help with flow. Avoid jargon and be specific with examples. Maintain a confident, authentic tone suitable for job interviews. Structure answers to be easily spoken aloud with appropriate pauses and emphasis. Never cut off responses mid-sentence. Always provide complete, well-structured answers that candidates can confidently read aloud."
-        },
-        {
-          role: "user",
-          content: truncatedPrompt
-        }
-      ],
+      messages: messages,
       model: "openai/gpt-oss-120b", // Correct model name with openai/ prefix
       temperature: 0.7,
       max_tokens: maxTokens,

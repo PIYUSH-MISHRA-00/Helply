@@ -9,6 +9,7 @@ let mainWindow = null
 let isRecording = false
 let currentTranscript = ''
 let answerDebounceTimer = null
+let conversationHistory = []
 
 // Create a backup of window position and size for restoring
 let windowState = {
@@ -283,11 +284,20 @@ async function getGroqAnswerWithContext(question, resume, jobDescription) {
       fullPrompt = truncatedContext + truncatedQuestion;
     }
 
-    // Get response from Groq
-    const answer = await GroqService.getAIResponse(fullPrompt);
+    // Get response from Groq with conversation history
+    const answer = await GroqService.getAIResponse(fullPrompt, conversationHistory);
     
     if (answer && answer.trim().length > 0) {
       console.log('Received answer from Groq:', answer);
+      
+      // Add the interaction to conversation history
+      conversationHistory.push({ role: "user", content: fullPrompt });
+      conversationHistory.push({ role: "assistant", content: answer });
+      
+      // Limit conversation history to prevent token overflow
+      if (conversationHistory.length > 10) {
+        conversationHistory = conversationHistory.slice(-10);
+      }
       
       // Explicitly send answer to UI
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -327,6 +337,7 @@ ipcMain.on('stop-audio-stream', () => {
 // Add this new function to reset transcript without creating a new chat
 ipcMain.on('reset-transcript', () => {
   currentTranscript = '';
+  conversationHistory = [];
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('transcript', '');
   }
@@ -455,6 +466,7 @@ ipcMain.on('get-answer', async (event, transcript) => {
 
 ipcMain.on('new-chat', () => {
   currentTranscript = ''
+  conversationHistory = []
   if (isRecording) {
     isRecording = false
     if (recording) {
