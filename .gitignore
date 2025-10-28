@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+
+# OS specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Distribution and build files
+dist/
+dist-electron/
+release/
+build-electron/
+*.exe
+*.dmg
+*.zip
+*.app
+*.blockmap
+out/
+bin/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+*-credentials.json
