@@ -75,7 +75,7 @@ async function getAIResponse(prompt) {
       messages: [
         {
           role: "system",
-          content: "You are a helpful AI assistant in a meeting. Your answers should be concise and complete. For brief questions, provide 1-2 sentences. For complex questions, provide 2-4 sentences as needed. Always ensure your responses end with complete sentences and proper punctuation. If provided with resume and job description context, use that information to tailor your responses to be relevant to the job and candidate. Always provide a helpful response, even if the input seems unclear. When responding to 'Tell me about yourself' or similar open-ended questions, provide a complete, well-structured response that covers key points without being cut off."
+          content: "You are an interview helper providing complete answers that candidates can read out loud to interviewers. Your responses should be formatted as spoken answers for job interviews. Structure responses clearly with a beginning, middle, and end that flows naturally when spoken aloud. For brief questions, provide 1-2 complete sentences. For complex questions, provide 3-5 complete sentences. Always ensure your responses end with complete sentences and proper punctuation. Focus on demonstrating relevant skills and experiences with specific examples. If provided with resume and job description context, tailor responses to be relevant to the job and candidate. When responding to 'Tell me about yourself', provide a complete 30-60 second professional summary covering background, key skills, and value proposition with a clear beginning, middle, and end. Use natural speaking language, not written text. Include verbal cues like 'First', 'Next', 'Finally' to help with flow. Avoid jargon and be specific with examples. Maintain a confident, authentic tone suitable for job interviews. Structure answers to be easily spoken aloud with appropriate pauses and emphasis. Never cut off responses mid-sentence. Always provide complete, well-structured answers that candidates can confidently read aloud."
         },
         {
           role: "user",
@@ -87,14 +87,14 @@ async function getAIResponse(prompt) {
       max_tokens: maxTokens,
       top_p: 1,
       stream: false,
-      stop: ["\n\n"] // Stop generation at double newlines to avoid incomplete thoughts
+      stop: [] // Don't stop early for interview responses - let them be complete
     });
 
     let response = chatCompletion.choices[0]?.message?.content || "";
     
     // If response is empty or just whitespace, provide a default response
     if (!response || response.trim().length === 0) {
-      return "I heard you, but I'm not sure how to respond to that. Could you please rephrase your question?";
+      return "I'd like to better understand your question. Could you please provide a bit more context about what you're looking for?";
     }
     
     // Ensure the response ends with a complete sentence
@@ -109,6 +109,8 @@ async function getAIResponse(prompt) {
       return "I'm currently experiencing high demand. Please try again in a moment.";
     } else if (error.response && error.response.status === 500) {
       return "I'm having trouble processing your request right now. Please try again.";
+    } else if (error.message && error.message.includes('timeout')) {
+      return "The response is taking longer than expected. Please try rephrasing your question.";
     }
     
     throw error;
@@ -121,17 +123,24 @@ async function getAIResponse(prompt) {
  * @returns {number} Appropriate max_tokens value
  */
 function determineAppropriateLength(prompt) {
-  // Keywords that typically require longer responses
+  // Keywords that typically require longer responses in interviews
   const complexKeywords = [
-    'tell me about yourself', 'explain', 'describe', 'how does', 'why is',
-    'what are the', 'compare', 'analyze', 'evaluate', 'discuss', 'overview',
-    'introduce', 'background', 'experience', 'approach', 'methodology'
+    'walk me through', 'explain your experience', 'describe a time', 
+    'how do you handle', 'why do you want', 'what are your strengths', 'what is your weakness',
+    'tell me about a challenge', 'how do you approach', 'discuss a project', 'what motivates you',
+    'where do you see yourself', 'explain your background', 'describe your role',
+    'how does your experience', 'compare your skills', 'analyze a situation', 'evaluate your performance'
   ];
   
   // Convert prompt to lowercase for matching
   const lowerPrompt = prompt.toLowerCase();
   
-  // Check if prompt contains complex keywords
+  // Special handling for "tell me about yourself" - needs more tokens
+  if (lowerPrompt.includes('tell me about yourself')) {
+    return 300; // Most tokens for this important interview question
+  }
+  
+  // Check if prompt contains other complex keywords
   const hasComplexKeywords = complexKeywords.some(keyword => lowerPrompt.includes(keyword));
   
   // Check prompt length
@@ -158,7 +167,7 @@ function ensureCompleteSentence(text) {
   if (!text) return text;
   
   // If text is very short, it's likely incomplete - try to make it complete
-  if (text.length < 10) {
+  if (text.length < 15) {
     // If it doesn't end with punctuation, add a period
     const lastChar = text.charAt(text.length - 1);
     if (![ '.', '!', '?', '"', "'" ].includes(lastChar)) {
@@ -168,12 +177,16 @@ function ensureCompleteSentence(text) {
   }
   
   // Check if the text ends mid-sentence with common incomplete patterns
+  // Include interview-specific incomplete endings
   const incompleteEndings = [
     'and', 'but', 'or', 'so', 'then', 'than', 'as', 'if', 'when', 'while',
     'because', 'since', 'although', 'though', 'unless', 'until', 'where',
     'whereas', 'whether', 'after', 'before', 'during', 'through', 'throughout',
     'within', 'without', 'despite', 'in', 'on', 'at', 'by', 'for', 'with',
-    'about', 'against', 'between', 'among', 'toward', 'into', 'onto', 'upon'
+    'about', 'against', 'between', 'among', 'toward', 'into', 'onto', 'upon',
+    'especially', 'particularly', 'specifically', 'namely', 'for example', 'such as',
+    'in conclusion', 'to conclude', 'finally', 'ultimately', 'overall',
+    'answer', 'response', 'here', 'there', 'sure', 'well'
   ];
   
   const words = text.split(/\s+/);
@@ -185,6 +198,24 @@ function ensureCompleteSentence(text) {
     const textWithoutLastWord = words.slice(0, -1).join(' ');
     if (textWithoutLastWord.length > 0) {
       return textWithoutLastWord.trim() + '.';
+    }
+  }
+  
+  // Special handling for phrases that sound incomplete
+  const incompletePhrases = [
+    'here is', 'here are', 'here\'s', 'there is', 'there are', 'there\'s',
+    'sure here', 'well here', 'so here', 'now here'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  for (const phrase of incompletePhrases) {
+    if (lowerText.includes(phrase) && !lowerText.includes('.')) {
+      // Try to complete the thought or add a period
+      if (text.length > 20) {
+        return text + '.';
+      } else {
+        return text + ' Let me provide a more complete answer.';
+      }
     }
   }
   
