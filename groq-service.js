@@ -53,45 +53,76 @@ async function transcribeAudio(audioBuffer) {
 
 /**
  * Get AI response using Groq's gpt-oss-120b model
- * @param {string} prompt - The prompt to send to the AI
- * @param {Array} conversationHistory - Previous conversation messages
- * @returns {Promise<string>} AI-generated response
+ * Automatically detects coding vs. conceptual interview questions
+ * and structures output like ChatGPT (Explanation + Code + Summary)
  */
 async function getAIResponse(prompt, conversationHistory = []) {
   try {
-    console.log('Getting AI response with Groq gpt-oss-120b model...');
-    
-    // Truncate prompt if it's too long to avoid API errors
-    const maxPromptLength = 2000;
-    let truncatedPrompt = prompt;
-    if (prompt.length > maxPromptLength) {
-      truncatedPrompt = prompt.substring(0, maxPromptLength) + '...';
-      console.log('Prompt truncated to avoid API limits');
-    }
-    
-    // Determine appropriate max_tokens based on question complexity
-    const maxTokens = determineAppropriateLength(truncatedPrompt);
-    
-    // Build messages array with conversation history
-    const messages = [
-      {
-        role: "system",
-        content: "You are an interview helper providing complete answers that candidates can read out loud to interviewers. Your responses should be formatted as spoken answers for job interviews. Structure responses clearly with a beginning, middle, and end that flows naturally when spoken aloud. For brief questions, provide 1-2 complete sentences. For complex questions, provide 3-5 complete sentences. Always ensure your responses end with complete sentences and proper punctuation. Focus on demonstrating relevant skills and experiences with specific examples. If provided with resume and job description context, tailor responses to be relevant to the job and candidate. When responding to 'Tell me about yourself', provide a complete 30-60 second professional summary covering background, key skills, and value proposition with a clear beginning, middle, and end. Use natural speaking language, not written text. Include verbal cues like 'First', 'Next', 'Finally' to help with flow. Avoid jargon and be specific with examples. Maintain a confident, authentic tone suitable for job interviews. Structure answers to be easily spoken aloud with appropriate pauses and emphasis. Never cut off responses mid-sentence. Always provide complete, well-structured answers that candidates can confidently read aloud. You have access to the conversation history to provide contextually relevant responses to follow-up questions."
-      }
+    console.log("Generating AI response for interview question...");
+    console.log('Sending to Groq with context:', prompt);
+
+    // STEP 1: Smart detection for code-related prompts
+    const lowerPrompt = prompt.toLowerCase();
+    const codeIndicators = [
+      "code", "program", "implement", "function", "class", "algorithm", 
+      "loop", "array", "python", "java", "c++", "javascript", "sql", 
+      "develop a", "write a", "create a", "build a", "snippet", "fibonacci", 
+      "armstrong", "prime", "factorial", "sort", "search", "print"
     ];
-    
-    // Add conversation history
-    messages.push(...conversationHistory);
-    
-    // Add the current prompt
-    messages.push({
+    const isCodingPrompt = codeIndicators.some(word => lowerPrompt.includes(word));
+
+    // STEP 2: Prepare system message with clear formatting rules
+    const systemMessage = {
+      role: "system",
+      content: `
+You are an expert interview assistant that gives *concise, structured* and *speakable* answers.
+
+General rules:
+- For simple behavioral or conceptual questions: give 3-4 polished sentences suitable for spoken answers.
+- For coding/technical questions: give
+  1. A short explanation (2–3 sentences)
+  2. The full code block in Markdown format (e.g. \`\`\`python)
+  3. A 1-line summary or usage tip
+
+Format example:
+"### Explanation
+...
+### Code
+\`\`\`python
+# your code here
+\`\`\`
+### Summary
+..."
+
+Keep your answers professional, complete, and neatly formatted in Markdown.
+Do NOT stop mid-code or mid-sentence. Always provide complete implementations.
+For coding questions, make sure the code is runnable and complete with all necessary parts.
+Never include introductory phrases like "Sure, here's a concise, spoken-style response" or similar.
+Directly start with the explanation or answer.
+`
+    };
+
+    // STEP 3: Adapt message content based on whether it's coding or not
+    const userMessage = {
       role: "user",
-      content: truncatedPrompt
-    });
-    
+      content: isCodingPrompt
+        ? `This is a coding question. Follow the format (Explanation → Code → Summary) and provide complete runnable code:\n\n${prompt}`
+        : `This is a spoken interview question. Provide a concise but complete spoken-style answer:\n\n${prompt}`
+    };
+
+    const messages = [
+      systemMessage,
+      ...conversationHistory,
+      userMessage
+    ];
+
+    // STEP 4: Adjust token limit dynamically
+    const maxTokens = isCodingPrompt ? 1000 : 300;
+
+    // STEP 5: Request Groq completion
     const chatCompletion = await groq.chat.completions.create({
-      messages: messages,
-      model: "openai/gpt-oss-120b", // Correct model name with openai/ prefix
+      model: "openai/gpt-oss-120b",
+      messages,
       temperature: 0.7,
       max_tokens: maxTokens,
       top_p: 1,
@@ -99,68 +130,67 @@ async function getAIResponse(prompt, conversationHistory = []) {
       stop: [] // Don't stop early for interview responses - let them be complete
     });
 
-    let response = chatCompletion.choices[0]?.message?.content || "";
+    let response = chatCompletion.choices?.[0]?.message?.content || "";
     
     // If response is empty or just whitespace, provide a default response
     if (!response || response.trim().length === 0) {
-      return "I'd like to better understand your question. Could you please provide a bit more context about what you're looking for?";
+      response = "I couldn't generate a response. Please try rephrasing your question.";
     }
-    
-    // Ensure the response ends with a complete sentence
+
+    // STEP 6: Ensure it ends cleanly
     response = ensureCompleteSentence(response);
-    
-    return response;
+
+    // STEP 7: Return response with clean Markdown (handled by frontend)
+    return formatCodeInResponse(response);
+
   } catch (error) {
-    console.error('Error getting AI response:', error);
-    
-    // Provide a more helpful error message
-    if (error.response && error.response.status === 429) {
-      return "I'm currently experiencing high demand. Please try again in a moment.";
-    } else if (error.response && error.response.status === 500) {
-      return "I'm having trouble processing your request right now. Please try again.";
-    } else if (error.message && error.message.includes('timeout')) {
-      return "The response is taking longer than expected. Please try rephrasing your question.";
+    console.error("Error generating AI response:", error);
+    if (error.response?.status === 429) {
+      return "Server is busy. Please try again shortly.";
     }
-    
+    if (error.response?.status === 500) {
+      return "Temporary issue with the AI model. Please retry.";
+    }
     throw error;
   }
 }
 
 /**
- * Determines appropriate response length based on question complexity
- * @param {string} prompt - The user's prompt
- * @returns {number} Appropriate max_tokens value
+ * Enhanced formatCodeInResponse (adds consistency)
+ * @param {string} response - The AI response to process
+ * @returns {string} Formatted response with properly structured code blocks
  */
-function determineAppropriateLength(prompt) {
-  // Keywords that typically require longer responses in interviews
-  const complexKeywords = [
-    'walk me through', 'explain your experience', 'describe a time', 
-    'how do you handle', 'why do you want', 'what are your strengths', 'what is your weakness',
-    'tell me about a challenge', 'how do you approach', 'discuss a project', 'what motivates you',
-    'where do you see yourself', 'explain your background', 'describe your role',
-    'how does your experience', 'compare your skills', 'analyze a situation', 'evaluate your performance'
-  ];
+function formatCodeInResponse(response) {
+  if (!response) return "";
+
+  // Remove common introductory phrases
+  response = response.replace(/^Sure, here[^\n]*\n?/i, '');
+  response = response.replace(/^Here[^\n]*response[^\n]*\n?/i, '');
+  response = response.replace(/^I can help you with that[^\n]*\n?/i, '');
+  response = response.replace(/^Here's a concise[^\n]*\n?/i, '');
+  response = response.replace(/^Here's how you can[^\n]*\n?/i, '');
   
-  // Convert prompt to lowercase for matching
-  const lowerPrompt = prompt.toLowerCase();
-  
-  // Special handling for "tell me about yourself" - needs more tokens
-  if (lowerPrompt.includes('tell me about yourself')) {
-    return 300; // Most tokens for this important interview question
+  // Ensure Markdown headers are consistent
+  response = response
+    .replace(/^#+\s*/gm, match => match.trim() + " ")
+    .replace(/\n{3,}/g, "\n\n");
+
+  // Ensure code blocks have proper language tags
+  if (response.includes("```") && !/```[a-z]+/i.test(response)) {
+    // Try to infer language
+    if (response.includes("def ") || response.includes("import ")) {
+      response = response.replace(/```/g, "```python");
+    } else if (response.includes("function ") || response.includes("console.log")) {
+      response = response.replace(/```/g, "```javascript");
+    } else if (response.includes("public class") || response.includes("public static")) {
+      response = response.replace(/```/g, "```java");
+    } else if (response.includes("#include") || response.includes("std::")) {
+      response = response.replace(/```/g, "```cpp");
+    }
   }
-  
-  // Check if prompt contains other complex keywords
-  const hasComplexKeywords = complexKeywords.some(keyword => lowerPrompt.includes(keyword));
-  
-  // Check prompt length
-  const isLongPrompt = prompt.length > 100;
-  
-  // Return appropriate token limit
-  if (hasComplexKeywords || isLongPrompt) {
-    return 250; // More tokens for complex questions
-  }
-  
-  return 150; // Standard token limit for simple questions
+
+  // Add a trailing newline for clean rendering
+  return response.trim() + "\n";
 }
 
 /**
@@ -185,6 +215,30 @@ function ensureCompleteSentence(text) {
     return text;
   }
   
+  // Special handling for code responses - don't modify if it looks like code
+  if (text.includes('```') && (text.includes('def ') || text.includes('function ') || text.includes('class '))) {
+    // If it ends with an incomplete line of code, try to complete it
+    const lines = text.split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+    
+    // If the last line looks incomplete (ends with =, (, [, {, or :)
+    if (/[=\(\[\{:]$/.test(lastLine)) {
+      // Remove the incomplete line and add a note
+      lines.pop();
+      return lines.join('\n') + '\n\n[Response appears to be incomplete. This may be due to token limits. Please try rephrasing your question or asking for a simpler implementation.]';
+    }
+    
+    // If it looks complete, return as is
+    return text;
+  }
+  
+  // Check if the response appears to be cut off (ends with a dash or incomplete thought)
+  if (text.endsWith('---') || text.endsWith('--') || text.endsWith('-') || text.endsWith('...')) {
+    // Remove the trailing incomplete markers and add a note
+    let cleanedText = text.replace(/-+$/, '').replace(/\.{3}$/, '').trim();
+    return cleanedText + '\n\n[Response appears to be incomplete. This may be due to token limits. Please try rephrasing your question or asking for a simpler implementation.]';
+  }
+  
   // Check if the text ends mid-sentence with common incomplete patterns
   // Include interview-specific incomplete endings
   const incompleteEndings = [
@@ -195,7 +249,7 @@ function ensureCompleteSentence(text) {
     'about', 'against', 'between', 'among', 'toward', 'into', 'onto', 'upon',
     'especially', 'particularly', 'specifically', 'namely', 'for example', 'such as',
     'in conclusion', 'to conclude', 'finally', 'ultimately', 'overall',
-    'answer', 'response', 'here', 'there', 'sure', 'well'
+    'answer', 'response', 'here', 'there', 'sure', 'well', 'first', 'next', 'second', 'third'
   ];
   
   const words = text.split(/\s+/);
@@ -213,7 +267,7 @@ function ensureCompleteSentence(text) {
   // Special handling for phrases that sound incomplete
   const incompletePhrases = [
     'here is', 'here are', 'here\'s', 'there is', 'there are', 'there\'s',
-    'sure here', 'well here', 'so here', 'now here'
+    'sure here', 'well here', 'so here', 'now here', 'let me', 'allow me'
   ];
   
   const lowerText = text.toLowerCase();
@@ -261,3 +315,39 @@ module.exports = {
   transcribeAudio,
   getAIResponse
 };
+
+// Test the formatCodeInResponse function (for development only)
+/*
+const testResponse = "Sure, here's a concise, spoken-style response you can use in an interview:\n\n### Explanation\nThis is a test explanation.\n\n### Code\n```python\ndef test():\n    pass\n```\n\n### Summary\nThis is a test summary.";
+console.log('Testing formatCodeInResponse:');
+console.log(formatCodeInResponse(testResponse));
+*/
+
+// Test the ensureCompleteSentence function (for development only)
+/*
+const testResponse = "Write a program to print the Fibonacci series in Python. 1. Brief Explanation of the Approach We will generate the Fibonacci series using an iterative method, which is efficient and easy to understand. The algorithm starts with the first two Fibonacci numbers, `0` and `1`. For each subsequent term, we compute the sum of the two previous terms and update the variables accordingly. The process repeats until we have produced the desired number of terms. Key points: - Handles the edge case where the requested length is `0` (no output) or `1` (only `0`). - Runs in O(n) time and O(1) extra space (aside from the list used for output). 2. Complete Code Implementation ```python def fibonacci_series(n: int) -> list[int]: \"\"\" Return a list containing the first `n` numbers of the Fibonacci series. Parameters ---------- n : int Number of Fibonacci numbers to generate. Must be >= 0. Returns ------- list[int] List of the first `n` Fibonacci numbers. \"\"\" if n < 0: raise ValueError(\"Number of terms must be non‑negative\") # Edge cases if n == 0: return [] if n == 1: return [0] # Start with the first two Fibonacci numbers fib = [0, 1] # Generate remaining numbers iteratively while len(fib) < n: next_val = fib[-1] + fib[-2] # sum of last two numbers fib.append(next_val) return fib def main(): # Example usage: ask the user for the number of terms try: count =";
+console.log('Testing ensureCompleteSentence with incomplete response:');
+console.log(ensureCompleteSentence(testResponse));
+*/
+
+// Test the token allocation (for development only)
+/*
+const testQuestion = "What is supervised and unsupervised, semi-supervised and related reinforcement learning?";
+const tokens = determineAppropriateLength(testQuestion);
+console.log('Token allocation for ML question:', tokens);
+
+const simpleQuestion = "Hello";
+const simpleTokens = determineAppropriateLength(simpleQuestion);
+console.log('Token allocation for simple question:', simpleTokens);
+
+const codingQuestion = "Write code to print Fibonacci series in Python";
+const codingTokens = determineAppropriateLength(codingQuestion);
+console.log('Token allocation for coding question:', codingTokens);
+*/
+
+// Test the updated implementation (for development only)
+/*
+const testResponse = "Here's a Python implementation to print the Fibonacci series. \`\`\`python\ndef print_fibonacci(n):\n    a, b = 0, 1\n    for i in range(n):\n        print(a, end=' ')\n        a, b = b, a + b\n    print()\n\n# Example usage\nprint_fibonacci(10)\n\`\`\`\n\nThis function prints the first n numbers in the Fibonacci series. It uses two variables to keep track of the current and next numbers in the sequence.";
+console.log('Testing updated formatCodeInResponse:');
+console.log(formatCodeInResponse(testResponse));
+*/

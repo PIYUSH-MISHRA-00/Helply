@@ -202,7 +202,8 @@ async function getGroqAnswer(transcript) {
       
       // Explicitly send answer to UI
       if (mainWindow && !mainWindow.isDestroyed()) {
-        console.log('Sending answer to UI');
+        console.log('Sending answer to UI, length:', answer.length);
+        console.log('Answer preview:', answer.substring(0, 200) + '...');
         mainWindow.webContents.send('answer', answer);
       } else {
         console.error('Main window not available for sending answer');

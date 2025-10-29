@@ -363,6 +363,105 @@
             line-height: 1.4;
         }
         
+        /* Code block styles */
+        .code-block {
+            margin: 1rem 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background-color: #2d2d30;
+            border-bottom: 1px solid #3c3c40;
+        }
+        
+        .language {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #9cdcfe;
+        }
+        
+        .copy-button {
+            background-color: transparent;
+            color: #9cdcfe;
+            border: 1px solid #9cdcfe;
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-button:hover {
+            background-color: #9cdcfe;
+            color: #1e1e1e;
+        }
+        
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+            white-space: pre;
+            max-height: 400px;
+        }
+        
+        .code-block code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        /* Markdown headers */
+        .message-content h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 1rem 0 0.5rem 0;
+            color: #333;
+        }
+        
+        .message-content h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 1rem 0 0.5rem 0;
+            color: #333;
+        }
+        
+        .message-content h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 1rem 0 0.5rem 0;
+            color: #333;
+        }
+        
+        /* Markdown lists */
+        .message-content ul, .message-content ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+        
+        .message-content li {
+            margin: 0.25rem 0;
+        }
+        
+        /* Markdown emphasis */
+        .message-content strong {
+            font-weight: 600;
+        }
+        
+        .message-content em {
+            font-style: italic;
+        }
+        
         .message-user .message-content {
             background-color: var(--primary);
             color: white;
@@ -374,6 +473,47 @@
             color: var(--text);
             border-radius: var(--radius-sm) var(--radius) var(--radius) var(--radius-sm);
             border-left: 4px solid var(--success);
+        }
+        
+        /* Syntax highlighting colors */
+        .language-javascript, .language-js {
+            color: #d4d4d4;
+        }
+        
+        .language-javascript .keyword, .language-js .keyword {
+            color: #569cd6;
+        }
+        
+        .language-javascript .function, .language-js .function {
+            color: #dcdcaa;
+        }
+        
+        .language-javascript .string, .language-js .string {
+            color: #ce9178;
+        }
+        
+        .language-javascript .comment, .language-js .comment {
+            color: #6a9955;
+        }
+        
+        .language-python {
+            color: #d4d4d4;
+        }
+        
+        .language-python .keyword {
+            color: #569cd6;
+        }
+        
+        .language-python .function {
+            color: #dcdcaa;
+        }
+        
+        .language-python .string {
+            color: #ce9178;
+        }
+        
+        .language-python .comment {
+            color: #6a9955;
         }
         
         /* Update live transcript styling for new position */
@@ -849,7 +989,20 @@
             
             const messageContent = document.createElement('div');
             messageContent.className = 'message-content';
-            messageContent.textContent = text;
+            
+            // Check if this is a response that might contain markdown formatting
+            // Enhanced detection to catch more markdown patterns
+            const hasMarkdown = !isUser && (text.includes('```') || text.includes('#') || text.includes('**') || text.includes('*') || 
+                           text.includes('PYTHON') || text.includes('Copy') || text.includes('PLAINTEXT'));
+            
+            if (hasMarkdown) {
+                // Format responses with markdown formatting
+                const formattedContent = convertMarkdownToHTML(text);
+                messageContent.innerHTML = formattedContent;
+            } else {
+                // For regular messages, just set the text content
+                messageContent.textContent = text;
+            }
             
             messageDiv.appendChild(messageContent);
             
@@ -861,6 +1014,118 @@
             
             // Store in messages array
             messages.push({ text, isUser });
+        }
+        
+        // Function to format code responses like ChatGPT
+        function formatCodeResponse(response) {
+            // Check if this has code blocks
+            const codeBlockRegex = /```(\w*)?([\s\S]*?)```/g;
+            
+            // Always format as markdown, even if no code blocks
+            return convertMarkdownToHTML(response);
+        }
+        
+        // Function to convert markdown-like formatting to HTML
+        function convertMarkdownToHTML(text) {
+            // First, clean up any malformed markdown patterns
+            // Handle the specific case where we see "PYTHON Copy" or "PLAINTEXT Copy"
+            text = text.replace(/(PYTHON|PLAINTEXT)\s*Copy/g, '```$1');
+            
+            // Convert code blocks first to preserve them
+            let codeBlocks = [];
+            let codeBlockCounter = 0;
+            
+            // Extract code blocks and replace with placeholders
+            // Enhanced regex to catch more variations
+            text = text.replace(/```(\w*)?([\s\S]*?)```/g, (match, language, code) => {
+                const lang = language || 'plaintext';
+                const placeholder = `{{CODEBLOCK_${codeBlockCounter}}}`;
+                codeBlocks[codeBlockCounter] = `
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span class="language">${lang}</span>
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <pre><code class="language-${lang}">${escapeHTML(code.trim())}</code></pre>
+                    </div>`;
+                codeBlockCounter++;
+                return placeholder;
+            });
+            
+            // Convert markdown headers to HTML headers
+            text = text.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+            text = text.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+            text = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+            
+            // Convert bold and italic
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Convert lists
+            text = text.replace(/^\s*\*\s*(.*)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+            
+            text = text.replace(/^\s*\d+\.\s*(.*)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*<\/li>)/gs, '<ol>$1</ol>');
+            
+            // Handle the case where there are no double newlines by ensuring proper paragraph breaks
+            // First, add paragraph breaks before headers if they don't already exist
+            text = text.replace(/(\S)(\n#)/g, '$1\n\n$2');
+            
+            // Convert paragraphs - split by double newlines
+            const paragraphs = text.split('\n\n');
+            let formattedText = '';
+            
+            for (let i = 0; i < paragraphs.length; i++) {
+                let paragraph = paragraphs[i].trim();
+                if (paragraph) {
+                    // Replace code block placeholders
+                    for (let j = 0; j < codeBlocks.length; j++) {
+                        const placeholder = `{{CODEBLOCK_${j}}}`;
+                        if (paragraph.includes(placeholder)) {
+                            paragraph = paragraph.replace(placeholder, codeBlocks[j]);
+                        }
+                    }
+                    
+                    // If it's already HTML or contains HTML tags
+                    if (paragraph.startsWith('<h') || paragraph.startsWith('<div') || paragraph.startsWith('<p') || 
+                        paragraph.startsWith('<ul') || paragraph.startsWith('<ol') || paragraph.includes('<')) {
+                        formattedText += paragraph;
+                    } else {
+                        // Convert line breaks within paragraphs
+                        paragraph = paragraph.replace(/\n/g, '<br>');
+                        formattedText += `<p>${paragraph}</p>`;
+                    }
+                }
+            }
+            
+            return formattedText;
+        }
+        
+        // Helper function to escape HTML
+        function escapeHTML(text) {
+            return text.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#039;');
+        }
+        
+        // Function to copy code to clipboard
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-block');
+            const code = codeBlock.querySelector('code').textContent;
+            
+            navigator.clipboard.writeText(code).then(() => {
+                // Show feedback
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy code: ', err);
+            });
         }
         
         // Function to update live transcript
