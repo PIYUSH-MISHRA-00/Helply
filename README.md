@@ -184,10 +184,6 @@ Planned features for future releases:
 - Advanced analytics for interview performance
 - Customizable AI response tones (formal, casual, technical)
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgments
 
 - [Groq](https://groq.com) for providing fast AI inference APIs
