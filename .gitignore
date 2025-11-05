@@ -1,32 +1,110 @@
-# Dependencies
-node_modules/
-npm-debug.log
-yarn-error.log
-yarn-debug.log
-package-lock.json
+# Flutter/Dart/Pub
+**.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+flutter_*.pdf
+coverage/
+test/reports/
 
-# OS specific files
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Android related
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+**/android/app/**/keys*
 
-# Distribution and build files
-dist/
-dist-electron/
-release/
-build-electron/
+# iOS/XCode related
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*sync/
+**/ios/**/.sconsign.dblite
+**/ios/**/.tags*
+**/ios/**/.vagrant/
+**/ios/**/DerivedData/
+**/ios/**/Icon?
+**/ios/**/Pods/
+**/ios/**/.symlinks/
+**/ios/**/profile
+**/ios/**/xcuserdata
+**/ios/.generated/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# macOS
+**/macos/**/*.mode1v3
+**/macos/**/*.mode2v3
+**/macos/**/*.moved-aside
+**/macos/**/*.pbxuser
+**/macos/**/*.perspectivev3
+**/macos/**/*sync/
+**/macos/**/.sconsign.dblite
+**/macos/**/.tags*
+**/macos/**/.vagrant/
+**/macos/**/DerivedData/
+**/macos/**/Icon?
+**/macos/**/Pods/
+**/macos/**/.symlinks/
+**/macos/**/profile
+**/macos/**/xcuserdata
+**/macos/.generated/
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.*
+
+# Windows
 *.exe
-*.dmg
-*.zip
-*.app
-*.blockmap
-out/
-bin/
-
-# Logs
+*.exe~
+*.dll
+*.so
+*.dylib
+*.cmd
 *.log
 
-# Environment variables
+# Coverage
+coverage/
+
+# Temporary
+*.swp
+*~
+.*.swp
+.*.tmp
+.DS_Store
+
+# IDE
+**/.idea/
+**/*.iml
+**/.vscode/
+
+# Log files
+*.log
+
+# Environment files
 .env
-*-credentials.json
+.env.local
+.env.production
+
+# Build outputs
+dist/
+release/
+.ipa
+.app
