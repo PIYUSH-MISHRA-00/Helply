@@ -54,7 +54,7 @@ async function transcribeAudio(audioBuffer) {
 /**
  * Get AI response using Groq's gpt-oss-120b model
  * Automatically detects coding vs. conceptual interview questions
- * and structures output like ChatGPT (Explanation + Code + Summary)
+ * and structures output with both layman and professional explanations
  */
 async function getAIResponse(prompt, conversationHistory = []) {
   try {
@@ -75,39 +75,50 @@ async function getAIResponse(prompt, conversationHistory = []) {
     const systemMessage = {
       role: "system",
       content: `
-You are an expert interview assistant that gives *concise, structured* and *speakable* answers.
+You are an expert interview assistant that gives structured, speakable answers in an interview format.
+
+Your response format depends on the question type:
+
+For ALL questions, provide BOTH explanations:
+1. Layman Explanation: Simple, easy-to-understand explanation as if explaining to someone without technical background (2-3 sentences)
+2. Professional Explanation: Detailed, technical explanation suitable for a professional interview setting (3-4 sentences)
+
+For coding/technical questions ALSO provide:
+3. Code Implementation: Complete, runnable code in appropriate language with proper syntax
+4. Code Walkthrough: Brief explanation of how the code works (2-3 sentences)
+
+Format your responses EXACTLY like this:
+
+## Layman Explanation
+[Simple explanation in plain English]
+
+## Professional Explanation
+[Detailed technical explanation with relevant terminology]
+
+${isCodingPrompt ? `## Code Implementation
+\`\`\`[language]
+[your complete code here]
+\`\`\`
+
+## Code Walkthrough
+[Explanation of how the code works]
+` : ''}
 
 General rules:
-- For simple behavioral or conceptual questions: give 3-4 polished sentences suitable for spoken answers.
-- For coding/technical questions: give
-  1. A short explanation (2–3 sentences)
-  2. The full code block in Markdown format (e.g. \`\`\`python)
-  3. A 1-line summary or usage tip
-
-Format example:
-"### Explanation
-...
-### Code
-\`\`\`python
-# your code here
-\`\`\`
-### Summary
-..."
-
-Keep your answers professional, complete, and neatly formatted in Markdown.
-Do NOT stop mid-code or mid-sentence. Always provide complete implementations.
-For coding questions, make sure the code is runnable and complete with all necessary parts.
-Never include introductory phrases like "Sure, here's a concise, spoken-style response" or similar.
-Directly start with the explanation or answer.
+- Keep answers professional, complete, and neatly formatted
+- Do NOT stop mid-explanation or mid-code
+- For coding questions, make sure the code is runnable and complete with all necessary parts
+- Never include introductory phrases like "Sure, here's..." or similar
+- Directly start with the explanations
+- Always provide both layman and professional explanations for every question
+- Only add code section if the question is specifically asking for code
 `
     };
 
     // STEP 3: Adapt message content based on whether it's coding or not
     const userMessage = {
       role: "user",
-      content: isCodingPrompt
-        ? `This is a coding question. Follow the format (Explanation → Code → Summary) and provide complete runnable code:\n\n${prompt}`
-        : `This is a spoken interview question. Provide a concise but complete spoken-style answer:\n\n${prompt}`
+      content: `Provide a complete interview-ready response with both layman and professional explanations${isCodingPrompt ? ' and code implementation' : ''}:\n\n${prompt}`
     };
 
     const messages = [
@@ -117,7 +128,7 @@ Directly start with the explanation or answer.
     ];
 
     // STEP 4: Adjust token limit dynamically
-    const maxTokens = isCodingPrompt ? 1000 : 300;
+    const maxTokens = isCodingPrompt ? 1200 : 600;
 
     // STEP 5: Request Groq completion
     const chatCompletion = await groq.chat.completions.create({
