@@ -89,12 +89,6 @@ For coding/technical questions ALSO provide:
 
 Format your responses EXACTLY like this:
 
-## Layman Explanation
-[Simple explanation in plain English]
-
-## Professional Explanation
-[Detailed technical explanation with relevant terminology]
-
 ${isCodingPrompt ? `## Code Implementation
 \`\`\`[language]
 [your complete code here]
@@ -102,7 +96,17 @@ ${isCodingPrompt ? `## Code Implementation
 
 ## Code Walkthrough
 [Explanation of how the code works]
-` : ''}
+
+## Professional Explanation
+[Detailed technical explanation with relevant terminology]
+
+## Layman Explanation
+[Simple explanation in plain English]
+` : `## Professional Explanation
+[Detailed technical explanation with relevant terminology]
+
+## Layman Explanation
+[Simple explanation in plain English]`}
 
 General rules:
 - Keep answers professional, complete, and neatly formatted
