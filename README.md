@@ -3,6 +3,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Languages](https://img.shields.io/badge/languages-JavaScript%20%7C%20HTML%20%7C%20Shell-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Helply-ffdd00?logo=buymeacoffee&logoColor=000000&style=for-the-badge)](https://buymeacoffee.com/piyushmishra00)
 
 Helply is a desktop meeting assistant for live transcription and AI answers during calls.
 
@@ -104,6 +105,20 @@ If your custom endpoint does not support transcription, use another provider for
 - `npm run build-mac`
 - `npm run build-win`
 - `npm run build-all`
+
+## Support and Contribute
+
+If Helply helps you, you can support the project here:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Fuel%20Helply-ffdd00?logo=buymeacoffee&logoColor=000000&style=for-the-badge)](https://buymeacoffee.com/piyushmishra00)
+
+Ways to help this repo grow:
+
+- Star the repo if you like the project or want to support it.
+- Open issues and PRs to improve Helply for everyone.
+- Share it with your friends, team, and developer communities.
+
+Let's make Helply go viral on the web together.
 
 ## License
 
