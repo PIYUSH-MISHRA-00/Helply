@@ -1,7 +1,11 @@
 {
   "name": "helply-ai-assistant",
   "version": "1.0.0",
-  "description": "AI-powered Meeting Assistant that provides real-time answers during meetings",
+  "description": "AI-powered Meeting Assistant for live transcription and context-aware answers during meetings",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PIYUSH-MISHRA-00/Helply.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,8 +17,8 @@
     "build-all": "sh ./build-all.sh",
     "postinstall": "electron-builder install-app-deps"
   },
-  "author": "Helply Team",
-  "license": "ISC",
+  "author": "Piyush Mishra <PIYUSH-MISHRA-00>",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.8.4",
     "dotenv": "^17.2.3",

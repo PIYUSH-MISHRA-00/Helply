@@ -1,76 +1,116 @@
-# Helply AI Meeting Assistant
+﻿# Helply AI Meeting Assistant
 
-Helply is a desktop application that helps you in meetings by providing real-time transcription and AI-generated answers.
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Languages](https://img.shields.io/badge/languages-JavaScript%20%7C%20HTML%20%7C%20Shell-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-%F0%9F%8D%B5-yellow)](https://buymeacoffee.com/piyushmishra00)
+
+Helply is a lightweight desktop meeting assistant that delivers live transcription and AI-powered meeting help without taking you away from the conversation.
+
+## Why Helply?
+
+Helply is built for professionals, teams, and remote workers who want a reliable meeting companion that listens, transcribes, and answers questions in real time.
+
+- Turn spoken meeting content into searchable text
+- Ask follow-up questions instantly
+- Keep the assistant visible but unobtrusive
+- Hide the app during screen sharing when needed
+- Add résumé or job description context for smarter responses
 
 ## Features
 
-- **Live Transcription**: See your speech as text in real-time using Groq's Whisper model
-- **AI-Powered Answers**: Get concise and helpful responses using Groq's openai/gpt-oss-120b model
-- **Always-on-Top**: Helply stays visible over other applications
-- **Screen Sharing Mode**: Hide Helply from screen recordings with a single click
-- **Dual Audio Capture**: Captures both microphone input and system audio simultaneously
-- **Context-Aware Responses**: Provide resume and job description for tailored responses
-- **Simple Interface**: Minimalist design that stays out of your way
+- Live transcription during meetings
+- Context-aware AI responses
+- Cross-platform support for Windows, macOS, and Linux
+- Always-on-top support for focus-driven meetings
+- Screen sharing friendly hide mode
+- Dual audio capture for mic and system audio
+- Resume and job context for better answers
 
-## Usage Instructions
+## Quick Start
 
-### Basic Controls
+### Requirements
 
-- **Start/Stop Recording**: Click the microphone button or press the spacebar
-- **Reset Conversation**: Click the refresh button to clear the chat history
-- **Hide from Screen Sharing**: Toggle the "Hide" switch to make Helply invisible in screen recordings
-- **Typed Questions**: Use the text input at the bottom to type questions directly
+- Node.js 18 or newer
+- npm 9 or newer
+- Windows 10 / 11, macOS 10.14+, or Linux 64-bit
+- A working microphone
+- Internet connection for AI and transcription services
 
-### Keyboard Shortcuts
+### Install
 
-- **Spacebar**: Start or stop recording
+Open a terminal inside the project folder and run:
 
-### Providing Context
+~~~bash
+npm install
+~~~
 
-1. Click the "Resume" or "Job Description" buttons on the welcome screen
-2. Enter your resume or job description in the modal that appears
-3. Click "Save" to apply the context
-4. The AI will use this information to provide more relevant responses
+### Environment Setup
 
-### Tips for Best Results
+Copy the example environment file and update it with your Groq API key:
 
-1. **Speak Clearly**: For the best transcription quality, speak at a normal pace and volume
-2. **Use Short Phrases**: The AI works best with concise, focused questions or statements
-3. **Position Properly**: Keep Helply visible but out of the way during your meetings
-4. **Toggle Screen Sharing**: When sharing your screen, use the Hide toggle to prevent Helply from appearing in your presentation
+~~~bash
+# Windows
+copy .env.example .env
 
-## System Requirements
+# macOS / Linux
+cp .env.example .env
+~~~
 
-- **macOS**: 10.14 or newer (Intel and Apple Silicon)
-- **Windows**: Windows 10 or newer (64-bit)
-- **Memory**: At least 4GB RAM recommended
-- **Microphone**: Any working microphone (internal or external)
-- **Internet**: Required for AI functionality and transcription
+Then edit `.env` and add:
 
-## Privacy & Security
+~~~env
+GROQ_API_KEY=your-groq-api-key-here
+~~~
 
-- All audio is processed in real-time and is not stored
-- Transcripts and conversations remain on your local device
-- API calls to Groq follow their privacy and data usage policies
+### Run
 
-## Troubleshooting
+Start Helply with:
 
-### Microphone Issues
+~~~bash
+npm start
+~~~
 
-If Helply can't hear you:
+## How to Use
 
-1. Check your system microphone settings
-2. Ensure Helply has microphone permissions
-3. Try restarting the application
+- Click the microphone icon or press **Spacebar** to start and stop recording.
+- Type questions in the chat box to get answers from the meeting assistant.
+- Use the **Hide** toggle while screen sharing to keep Helply out of view.
+- Add resume or job description context for more relevant responses.
 
-### Performance Issues
+## Development
 
-If Helply is running slowly:
+Use these scripts to run and package the app:
 
-1. Close other resource-intensive applications
-2. Ensure you have a stable internet connection
-3. Restart the application
+- npm start — launch Helply locally
+- npm run build — package with electron-builder
+- npm run build-mac — build a macOS release
+- npm run build-win — build a Windows release
+- npm run build-all — run the full build script
 
----
+> Note: build-all.sh and start.sh are included for supported workflows.
 
-For support or questions, contact the project maintainers.
+## Contribution
+
+Helply is open for contributions. If you would like to help:
+
+- Open an issue for bugs or feature ideas
+- Send a pull request with your improvements
+- Keep the original author credit intact
+- Reference **Piyush Mishra** and GitHub user **PIYUSH-MISHRA-00** when using or extending this project
+
+If Helply helps you, please star the repository, share it with your team, and spread the word to help it go viral.
+
+## Support
+
+If you want to support continued development, buy me a coffee:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-%F0%9F%8D%B5-yellow)](https://buymeacoffee.com/piyushmishra00)
+
+## License
+
+This project is released under the **MIT License**.
+
+© 2025 Piyush Mishra (PIYUSH-MISHRA-00)
+
+When using, forking, or building on top of Helply, please retain this notice and credit the original author.
