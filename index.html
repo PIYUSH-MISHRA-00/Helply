@@ -206,6 +206,21 @@
             gap: 0.75rem;
             justify-content: flex-end;
         }
+
+        .settings-test-result {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            min-height: 1.2rem;
+        }
+
+        .settings-test-result.success {
+            color: #065f46;
+        }
+
+        .settings-test-result.error {
+            color: #991b1b;
+        }
         
         .save-button, .discard-button {
             padding: 0.5rem 1rem;
@@ -1109,9 +1124,11 @@
                     </div>
 
                     <div class="modal-buttons">
+                        <button id="testSettings" class="discard-button">Test Connection</button>
                         <button id="saveSettings" class="save-button">Save Settings</button>
                         <button id="discardSettings" class="discard-button">Cancel</button>
                     </div>
+                    <div id="settingsTestResult" class="settings-test-result"></div>
                 </div>
             </div>
             
@@ -1198,7 +1215,8 @@
             if (ipcRenderer && typeof ipcRenderer.invoke === 'function') {
                 return {
                     getSettings: () => ipcRenderer.invoke('get-settings'),
-                    updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings)
+                    updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings),
+                    testProviderConnection: (settings) => ipcRenderer.invoke('test-provider-connection', settings)
                 };
             }
             return {
@@ -1206,6 +1224,9 @@
                     throw new Error('Settings API is unavailable.');
                 },
                 updateSettings: async () => {
+                    throw new Error('Settings API is unavailable.');
+                },
+                testProviderConnection: async () => {
                     throw new Error('Settings API is unavailable.');
                 }
             };
@@ -1244,8 +1265,10 @@
         // Settings modal elements
         const settingsButton = document.getElementById('settingsButton');
         const settingsModal = document.getElementById('settingsModal');
+        const testSettings = document.getElementById('testSettings');
         const saveSettings = document.getElementById('saveSettings');
         const discardSettings = document.getElementById('discardSettings');
+        const settingsTestResult = document.getElementById('settingsTestResult');
         
         let isRecording = false;
         let isProcessingToggle = false;
@@ -1580,6 +1603,8 @@
 
                 updateApiKeyFields();
                 updateModelInputs();
+                settingsTestResult.textContent = '';
+                settingsTestResult.className = 'settings-test-result';
                 settingsModal.classList.remove('hidden');
             }).catch(error => {
                 console.error('Failed to load settings:', error);
@@ -1590,8 +1615,8 @@
         function closeSettingsModal() {
             settingsModal.classList.add('hidden');
         }
-        
-        function onSaveSettings() {
+
+        function buildSettingsPayloadFromForm() {
             const transcriptionProvider = document.getElementById('transcriptionProvider').value;
             const chatProvider = document.getElementById('chatProvider').value;
             const providerSettings = cloneProviderSettings(settingsSnapshot?.providerSettings || {});
@@ -1607,11 +1632,35 @@
             ensureProviderSettings(providerSettings, transcriptionProvider).transcriptionModel = document.getElementById('transcriptionModel').value.trim();
             ensureProviderSettings(providerSettings, chatProvider).chatModel = document.getElementById('chatModel').value.trim();
 
-            const settings = {
+            return {
                 transcriptionProvider,
                 chatProvider,
                 providerSettings
             };
+        }
+
+        async function onTestSettings() {
+            const payload = buildSettingsPayloadFromForm();
+            testSettings.disabled = true;
+            settingsTestResult.className = 'settings-test-result';
+            settingsTestResult.textContent = 'Testing provider connection...';
+
+            try {
+                const result = await electronAPI.testProviderConnection(payload);
+                const lines = (result?.checks || []).map((check) => `${check.mode}: ${check.ok ? 'OK' : 'Failed'}${check.message ? ` - ${check.message}` : ''}`);
+                settingsTestResult.textContent = lines.join(' | ') || (result?.ok ? 'Connection successful.' : 'Connection test failed.');
+                settingsTestResult.className = `settings-test-result ${result?.ok ? 'success' : 'error'}`;
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                settingsTestResult.className = 'settings-test-result error';
+                settingsTestResult.textContent = `Test failed: ${error.message || 'Unknown error'}`;
+            } finally {
+                testSettings.disabled = false;
+            }
+        }
+        
+        function onSaveSettings() {
+            const settings = buildSettingsPayloadFromForm();
             
             electronAPI.updateSettings(settings).then(() => {
                 settingsSnapshot = {
@@ -1704,6 +1753,7 @@
         
         // Settings modal event listeners
         settingsButton.addEventListener('click', openSettingsModal);
+        testSettings.addEventListener('click', onTestSettings);
         saveSettings.addEventListener('click', onSaveSettings);
         discardSettings.addEventListener('click', closeSettingsModal);
         

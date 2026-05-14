@@ -251,6 +251,16 @@ function upsertEnvVar(envContent, key, value) {
   return `${envContent.trimEnd()}\n${newLine}\n`;
 }
 
+function removeEnvVarLines(envContent, keys = []) {
+  let output = envContent;
+  for (const key of keys) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const lineRegex = new RegExp(`^${escaped}=.*(?:\\r?\\n)?`, 'gm');
+    output = output.replace(lineRegex, '');
+  }
+  return output;
+}
+
 function serializeEnvValue(value) {
   const stringValue = String(value ?? '');
   if (!stringValue) return '';
@@ -284,6 +294,27 @@ function saveConfigToEnv() {
   if (fs.existsSync(envPath)) {
     envContent = fs.readFileSync(envPath, 'utf8');
   }
+
+  const managedKeys = [
+    'TRANSCRIPTION_PROVIDER',
+    'CHAT_PROVIDER',
+    ...providerNames.flatMap((providerName) => ([
+      getProviderEnvName(providerName, 'API_KEY'),
+      getProviderEnvName(providerName, 'BASE_URL'),
+      getProviderEnvName(providerName, 'CHAT_MODEL'),
+      getProviderEnvName(providerName, 'TRANSCRIPTION_MODEL')
+    ])),
+    'GROQ_API_KEY',
+    'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'CUSTOM_API_KEY',
+    'CUSTOM_BASE_URL',
+    'OLLAMA_BASE_URL',
+    'LMSTUDIO_BASE_URL'
+  ];
+
+  // Remove all previous managed lines so restart cannot pick stale duplicate values.
+  envContent = removeEnvVarLines(envContent, managedKeys);
 
   const baseUpdates = {
     TRANSCRIPTION_PROVIDER: config.transcriptionProvider,

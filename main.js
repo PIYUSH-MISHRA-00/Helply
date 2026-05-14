@@ -625,6 +625,165 @@ ipcMain.handle('update-settings', async (event, settings) => {
   return true;
 });
 
+function joinUrl(baseUrl, endpoint) {
+  const cleanBase = String(baseUrl || '').replace(/\/+$/, '');
+  const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
+  return `${cleanBase}/${cleanEndpoint}`;
+}
+
+function mergedProviderRuntime(providerName, draftSettings = {}) {
+  const allProviders = (config.providersConfig && config.providersConfig.providers) || {};
+  const providerConfig = allProviders[providerName];
+  if (!providerConfig) {
+    throw new Error(`Unknown provider: ${providerName}`);
+  }
+
+  const currentSettings = (config.getConfig().providerSettings || {})[providerName] || {};
+  const draftProviderSettings = (draftSettings.providerSettings || {})[providerName] || {};
+  const settings = { ...currentSettings, ...draftProviderSettings };
+
+  return {
+    name: providerName,
+    type: providerConfig.type || 'openai_compatible',
+    config: providerConfig,
+    apiKeyRequired: Boolean(providerConfig.apiKeyRequired),
+    supportsChat: Boolean(providerConfig.chat?.enabled),
+    supportsTranscription: Boolean(providerConfig.transcription?.enabled),
+    apiKey: String(settings.apiKey || '').trim(),
+    baseUrl: String(settings.baseUrl || providerConfig.baseUrl || '').trim(),
+    chatModel: String(settings.chatModel || providerConfig.chat?.defaultModel || '').trim(),
+    transcriptionModel: String(settings.transcriptionModel || providerConfig.transcription?.defaultModel || '').trim()
+  };
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+
+    const responseText = await response.text();
+    let json;
+    try {
+      json = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!response.ok) {
+      const message = json?.error?.message || responseText || response.statusText || `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function testChatConnection(runtime) {
+  if (!runtime.supportsChat) {
+    return { ok: false, mode: 'chat', message: `${runtime.config.name} does not support chat.` };
+  }
+  if (!runtime.baseUrl) {
+    return { ok: false, mode: 'chat', message: 'Base URL is required.' };
+  }
+  if (runtime.apiKeyRequired && !runtime.apiKey) {
+    return { ok: false, mode: 'chat', message: 'API key is required.' };
+  }
+
+  try {
+    if (runtime.type === 'anthropic') {
+      await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/v1/messages'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': runtime.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: runtime.chatModel,
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'Ping' }]
+        })
+      });
+    } else if (runtime.type === 'ollama') {
+      await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/api/tags'));
+    } else {
+      const headers = { 'Content-Type': 'application/json' };
+      if (runtime.apiKey) {
+        headers.Authorization = `Bearer ${runtime.apiKey}`;
+      }
+      await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/chat/completions'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: runtime.chatModel,
+          messages: [{ role: 'user', content: 'Ping' }],
+          max_tokens: 1
+        })
+      });
+    }
+    return { ok: true, mode: 'chat', message: `${runtime.config.name} chat connection is valid.` };
+  } catch (error) {
+    return { ok: false, mode: 'chat', message: error.message || 'Chat test failed.' };
+  }
+}
+
+async function testTranscriptionConnection(runtime) {
+  if (!runtime.supportsTranscription) {
+    return { ok: false, mode: 'transcription', message: `${runtime.config.name} does not support transcription.` };
+  }
+  if (!runtime.baseUrl) {
+    return { ok: false, mode: 'transcription', message: 'Base URL is required.' };
+  }
+  if (runtime.apiKeyRequired && !runtime.apiKey) {
+    return { ok: false, mode: 'transcription', message: 'API key is required.' };
+  }
+
+  // Lightweight check: authenticate with /models endpoint.
+  try {
+    const headers = {};
+    if (runtime.type === 'anthropic') {
+      headers['x-api-key'] = runtime.apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    } else if (runtime.apiKey) {
+      headers.Authorization = `Bearer ${runtime.apiKey}`;
+    }
+    await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/models'), { headers });
+    return { ok: true, mode: 'transcription', message: `${runtime.config.name} authentication is valid.` };
+  } catch (error) {
+    return { ok: false, mode: 'transcription', message: error.message || 'Transcription test failed.' };
+  }
+}
+
+ipcMain.handle('test-provider-connection', async (event, draftSettings) => {
+  const transcriptionProvider = draftSettings?.transcriptionProvider || config.getConfig().transcriptionProvider;
+  const chatProvider = draftSettings?.chatProvider || config.getConfig().chatProvider;
+  const checks = [];
+
+  try {
+    const chatRuntime = mergedProviderRuntime(chatProvider, draftSettings || {});
+    checks.push(await testChatConnection(chatRuntime));
+  } catch (error) {
+    checks.push({ ok: false, mode: 'chat', message: error.message || 'Chat provider test failed.' });
+  }
+
+  try {
+    const transcriptionRuntime = mergedProviderRuntime(transcriptionProvider, draftSettings || {});
+    checks.push(await testTranscriptionConnection(transcriptionRuntime));
+  } catch (error) {
+    checks.push({ ok: false, mode: 'transcription', message: error.message || 'Transcription provider test failed.' });
+  }
+
+  const ok = checks.every((item) => item.ok);
+  return { ok, checks };
+});
+
 // Optimize audio processing by reducing buffer size check
 // This will make the processing faster and more responsive
 

@@ -16,7 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // New settings IPC methods
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings)
+  updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings),
+  testProviderConnection: (settings) => ipcRenderer.invoke('test-provider-connection', settings)
 })
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
