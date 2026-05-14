@@ -43,18 +43,20 @@
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
-            padding: 0.75rem;
+            align-items: stretch;
+            padding: 0.5rem;
             line-height: 1.5;
             font-size: 0.875rem;
+            overflow: hidden;
         }
         
         .container {
             background: var(--card);
             width: 100%;
-            min-width: 450px;
-            max-width: 90vw;
-            height: 85vh;
+            min-width: 0;
+            max-width: 100%;
+            height: calc(100vh - 1rem);
+            max-height: calc(100vh - 1rem);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-lg);
             overflow: hidden;
@@ -121,6 +123,8 @@
             display: flex;
             gap: 1rem;
             margin: 1.5rem 0;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         
         .context-button {
@@ -167,8 +171,8 @@
             border-radius: var(--radius-lg);
             padding: 1.5rem;
             width: 90%;
-            max-width: 500px;
-            max-height: 80vh;
+            max-width: 620px;
+            max-height: calc(100vh - 2rem);
             overflow-y: auto;
             box-shadow: var(--shadow-lg);
         }
@@ -229,6 +233,85 @@
         
         .discard-button:hover {
             background-color: #cbd5e1;
+        }
+        
+        /* Settings modal styles */
+        .settings-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .settings-section h4 {
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        .provider-select {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .provider-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        
+        .api-key-input {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .api-key-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .api-key-field {
+            margin-bottom: 0.75rem;
+        }
+
+        .field-help {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 0.2rem;
+        }
+
+        .input-with-action {
+            display: flex;
+            gap: 0.4rem;
+            align-items: center;
+        }
+
+        .input-with-action .api-key-input {
+            margin-bottom: 0;
+        }
+
+        .toggle-visibility-btn {
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: var(--radius-sm);
+            color: var(--text-light);
+            padding: 0.45rem 0.55rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .toggle-visibility-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
         }
         
         .start-btn {
@@ -619,6 +702,28 @@
             font-size: 1rem;
             color: #4b5563;
         }
+
+        .back-button {
+            height: 2.25rem;
+            width: 2.25rem;
+            border-radius: 50%;
+            background-color: #fee2e2;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background-color: #fecaca;
+        }
+
+        .back-button i {
+            font-size: 1rem;
+            color: #991b1b;
+        }
         
         .status-text {
             font-size: 0.75rem;
@@ -820,6 +925,42 @@
         .submit-button i {
             font-size: 1rem;
         }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 0.35rem;
+            }
+
+            .container {
+                height: calc(100vh - 0.7rem);
+                max-height: calc(100vh - 0.7rem);
+                border-radius: var(--radius);
+            }
+
+            .welcome-screen {
+                padding: 1.2rem 0.8rem 1.8rem;
+                justify-content: flex-start;
+                overflow-y: auto;
+            }
+
+            .product-name {
+                font-size: 2rem;
+            }
+
+            .context-buttons-container {
+                gap: 0.6rem;
+            }
+
+            .context-button {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .modal-content {
+                width: calc(100% - 1rem);
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -847,6 +988,9 @@
                 <button id="jobDescriptionButton" class="context-button">
                     <i class="fas fa-briefcase"></i> Job Description
                 </button>
+                <button id="settingsButton" class="context-button">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
             </div>
             
             <!-- Context input modals (hidden by default) -->
@@ -868,6 +1012,105 @@
                     <div class="modal-buttons">
                         <button id="saveJobDescription" class="save-button">Save</button>
                         <button id="discardJobDescription" class="discard-button">Discard</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Modal -->
+            <div id="settingsModal" class="context-modal hidden">
+                <div class="modal-content">
+                    <h3>AI Provider Settings</h3>
+
+                    <div class="settings-section">
+                        <label for="transcriptionProvider">Transcription Provider</label>
+                        <select id="transcriptionProvider" class="provider-select">
+                            <option value="groq">Groq (Whisper)</option>
+                            <option value="openai">OpenAI (Whisper)</option>
+                            <option value="custom">Any OpenAI-Compatible (Local/Cloud)</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-section">
+                        <label for="chatProvider">Chat Provider</label>
+                        <select id="chatProvider" class="provider-select">
+                            <option value="groq">Groq</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="lmstudio">LM Studio (Local)</option>
+                            <option value="custom">Any OpenAI-Compatible (Local/Cloud)</option>
+                        </select>
+                    </div>
+
+                    <div id="groqApiKeyField" class="api-key-field hidden">
+                        <label for="groqApiKey">Groq API Key</label>
+                        <div class="input-with-action">
+                            <input type="password" id="groqApiKey" class="api-key-input" placeholder="gsk_...">
+                            <button type="button" class="toggle-visibility-btn reveal-secret" data-target="groqApiKey" aria-label="Show or hide Groq API key">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="openaiApiKeyField" class="api-key-field hidden">
+                        <label for="openaiApiKey">OpenAI API Key</label>
+                        <div class="input-with-action">
+                            <input type="password" id="openaiApiKey" class="api-key-input" placeholder="sk-...">
+                            <button type="button" class="toggle-visibility-btn reveal-secret" data-target="openaiApiKey" aria-label="Show or hide OpenAI API key">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="anthropicApiKeyField" class="api-key-field hidden">
+                        <label for="anthropicApiKey">Anthropic API Key</label>
+                        <div class="input-with-action">
+                            <input type="password" id="anthropicApiKey" class="api-key-input" placeholder="sk-ant-...">
+                            <button type="button" class="toggle-visibility-btn reveal-secret" data-target="anthropicApiKey" aria-label="Show or hide Anthropic API key">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="ollamaBaseUrlField" class="api-key-field hidden">
+                        <label for="ollamaBaseUrl">Ollama Base URL</label>
+                        <input type="text" id="ollamaBaseUrl" class="api-key-input" placeholder="http://localhost:11434">
+                    </div>
+
+                    <div id="lmStudioBaseUrlField" class="api-key-field hidden">
+                        <label for="lmStudioBaseUrl">LM Studio Base URL</label>
+                        <input type="text" id="lmStudioBaseUrl" class="api-key-input" placeholder="http://localhost:1234">
+                    </div>
+
+                    <div id="customBaseUrlField" class="api-key-field hidden">
+                        <label for="customBaseUrl">OpenAI-Compatible Base URL</label>
+                        <input type="text" id="customBaseUrl" class="api-key-input" placeholder="https://your-openai-compatible-host">
+                        <div class="field-help">Examples: OpenRouter, vLLM, llama.cpp server, LocalAI, Together, custom gateway.</div>
+                    </div>
+
+                    <div id="customApiKeyField" class="api-key-field hidden">
+                        <label for="customApiKey">OpenAI-Compatible API Key (Optional)</label>
+                        <div class="input-with-action">
+                            <input type="password" id="customApiKey" class="api-key-input" placeholder="Leave blank if your endpoint does not need one">
+                            <button type="button" class="toggle-visibility-btn reveal-secret" data-target="customApiKey" aria-label="Show or hide custom API key">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="transcriptionModelField" class="api-key-field">
+                        <label for="transcriptionModel">Transcription Model</label>
+                        <input type="text" id="transcriptionModel" class="api-key-input" placeholder="Model used by selected transcription provider">
+                    </div>
+
+                    <div id="chatModelField" class="api-key-field">
+                        <label for="chatModel">Chat Model</label>
+                        <input type="text" id="chatModel" class="api-key-input" placeholder="Model used by selected chat provider">
+                    </div>
+
+                    <div class="modal-buttons">
+                        <button id="saveSettings" class="save-button">Save Settings</button>
+                        <button id="discardSettings" class="discard-button">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -905,6 +1148,9 @@
                     <button id="resetButton" class="reset-button">
                         <i class="fas fa-refresh"></i>
                     </button>
+                    <button id="backButton" class="back-button" title="Back to Main Menu">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
                     <!-- Hide toggle moved here -->
                     <div class="toggle-container">
                         <div class="toggle-switch compact">
@@ -932,7 +1178,38 @@
     
     <!-- JavaScript -->
     <script>
-        const { ipcRenderer } = require('electron');
+        const ipcRenderer = (() => {
+            if (window.ipcRenderer && typeof window.ipcRenderer.send === 'function') {
+                return window.ipcRenderer;
+            }
+            try {
+                const electron = require('electron');
+                return electron.ipcRenderer;
+            } catch (error) {
+                console.error('ipcRenderer unavailable:', error);
+                return null;
+            }
+        })();
+
+        const electronAPI = (() => {
+            if (window.electronAPI && typeof window.electronAPI.getSettings === 'function') {
+                return window.electronAPI;
+            }
+            if (ipcRenderer && typeof ipcRenderer.invoke === 'function') {
+                return {
+                    getSettings: () => ipcRenderer.invoke('get-settings'),
+                    updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings)
+                };
+            }
+            return {
+                getSettings: async () => {
+                    throw new Error('Settings API is unavailable.');
+                },
+                updateSettings: async () => {
+                    throw new Error('Settings API is unavailable.');
+                }
+            };
+        })();
         
         // Get all necessary DOM elements
         const startAppButton = document.getElementById('startApp');
@@ -941,6 +1218,7 @@
         const screenSharingToggle = document.getElementById('screenSharingMode');
         const micButton = document.getElementById('micButton');
         const resetButton = document.getElementById('resetButton');
+        const backButton = document.getElementById('backButton');
         const statusText = document.getElementById('statusText');
         const chatMessages = document.getElementById('chatMessages');
         const liveTranscript = document.getElementById('liveTranscript');
@@ -963,14 +1241,39 @@
         const saveJobDescription = document.getElementById('saveJobDescription');
         const discardJobDescription = document.getElementById('discardJobDescription');
         
+        // Settings modal elements
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsModal = document.getElementById('settingsModal');
+        const saveSettings = document.getElementById('saveSettings');
+        const discardSettings = document.getElementById('discardSettings');
+        
         let isRecording = false;
         let isProcessingToggle = false;
         let messages = [];
         let resumeContext = '';
         let jobDescriptionContext = '';
+        let settingsSnapshot = null;
 
         // Make sure appContent is hidden initially
         appContent.classList.add('hidden');
+
+        function sendIPC(channel, payload) {
+            if (!ipcRenderer || typeof ipcRenderer.send !== 'function') {
+                console.error(`Unable to send IPC message: ${channel}`);
+                updateStatus('Desktop bridge unavailable. Please restart the app.');
+                return false;
+            }
+            ipcRenderer.send(channel, payload);
+            return true;
+        }
+
+        function onIPC(channel, handler) {
+            if (!ipcRenderer || typeof ipcRenderer.on !== 'function') {
+                console.error(`Unable to listen IPC channel: ${channel}`);
+                return;
+            }
+            ipcRenderer.on(channel, handler);
+        }
         
         // Function to show loading animation
         function showLoadingAnimation() {
@@ -1163,7 +1466,7 @@
             updateStatus('Generating answer...');
             
             // Send question to main process for AI response with context
-            ipcRenderer.send('get-answer-with-context', {
+            sendIPC('get-answer-with-context', {
                 question: question,
                 resume: resumeContext,
                 jobDescription: jobDescriptionContext
@@ -1189,6 +1492,185 @@
             jobDescriptionModal.classList.add('hidden');
         }
         
+        // Settings modal functions
+        function cloneProviderSettings(sourceSettings = {}) {
+            return JSON.parse(JSON.stringify(sourceSettings || {}));
+        }
+
+        function ensureProviderSettings(providerSettings, providerName) {
+            if (!providerSettings[providerName]) {
+                providerSettings[providerName] = {
+                    apiKey: '',
+                    baseUrl: '',
+                    chatModel: '',
+                    transcriptionModel: ''
+                };
+            }
+            return providerSettings[providerName];
+        }
+
+        function populateProviderOptions(providers = {}, selectedTranscription, selectedChat) {
+            const transcriptionSelect = document.getElementById('transcriptionProvider');
+            const chatSelect = document.getElementById('chatProvider');
+
+            transcriptionSelect.innerHTML = '';
+            chatSelect.innerHTML = '';
+
+            Object.entries(providers).forEach(([providerKey, provider]) => {
+                if (provider?.transcription?.enabled) {
+                    const option = document.createElement('option');
+                    option.value = providerKey;
+                    option.textContent = provider?.name || providerKey;
+                    transcriptionSelect.appendChild(option);
+                }
+
+                if (provider?.chat?.enabled) {
+                    const option = document.createElement('option');
+                    option.value = providerKey;
+                    option.textContent = provider?.name || providerKey;
+                    chatSelect.appendChild(option);
+                }
+            });
+
+            if (selectedTranscription) {
+                transcriptionSelect.value = selectedTranscription;
+            }
+            if (selectedChat) {
+                chatSelect.value = selectedChat;
+            }
+        }
+
+        function updateModelInputs() {
+            if (!settingsSnapshot) return;
+
+            const transcriptionProvider = document.getElementById('transcriptionProvider').value;
+            const chatProvider = document.getElementById('chatProvider').value;
+            const transcriptionModelInput = document.getElementById('transcriptionModel');
+            const chatModelInput = document.getElementById('chatModel');
+
+            const transcriptionSettings = settingsSnapshot.providerSettings?.[transcriptionProvider] || {};
+            const chatSettings = settingsSnapshot.providerSettings?.[chatProvider] || {};
+            const transcriptionProviderDetails = settingsSnapshot.providers?.[transcriptionProvider] || {};
+            const chatProviderDetails = settingsSnapshot.providers?.[chatProvider] || {};
+
+            transcriptionModelInput.value = transcriptionSettings.transcriptionModel || transcriptionProviderDetails.transcription?.defaultModel || '';
+            chatModelInput.value = chatSettings.chatModel || chatProviderDetails.chat?.defaultModel || '';
+        }
+
+        function openSettingsModal() {
+            electronAPI.getSettings().then(settings => {
+                settingsSnapshot = settings || {};
+                settingsSnapshot.providerSettings = settingsSnapshot.providerSettings || {};
+                settingsSnapshot.providers = settingsSnapshot.providers || {};
+
+                populateProviderOptions(
+                    settingsSnapshot.providers,
+                    settingsSnapshot.transcriptionProvider || 'groq',
+                    settingsSnapshot.chatProvider || 'groq'
+                );
+
+                const providerSettings = settingsSnapshot.providerSettings;
+                document.getElementById('groqApiKey').value = providerSettings?.groq?.apiKey || '';
+                document.getElementById('openaiApiKey').value = providerSettings?.openai?.apiKey || '';
+                document.getElementById('anthropicApiKey').value = providerSettings?.anthropic?.apiKey || '';
+                document.getElementById('customApiKey').value = providerSettings?.custom?.apiKey || '';
+                document.getElementById('ollamaBaseUrl').value = providerSettings?.ollama?.baseUrl || 'http://localhost:11434';
+                document.getElementById('lmStudioBaseUrl').value = providerSettings?.lmstudio?.baseUrl || 'http://localhost:1234';
+                document.getElementById('customBaseUrl').value = providerSettings?.custom?.baseUrl || '';
+
+                updateApiKeyFields();
+                updateModelInputs();
+                settingsModal.classList.remove('hidden');
+            }).catch(error => {
+                console.error('Failed to load settings:', error);
+                alert('Unable to load settings.');
+            });
+        }
+        
+        function closeSettingsModal() {
+            settingsModal.classList.add('hidden');
+        }
+        
+        function onSaveSettings() {
+            const transcriptionProvider = document.getElementById('transcriptionProvider').value;
+            const chatProvider = document.getElementById('chatProvider').value;
+            const providerSettings = cloneProviderSettings(settingsSnapshot?.providerSettings || {});
+
+            ensureProviderSettings(providerSettings, 'groq').apiKey = document.getElementById('groqApiKey').value.trim();
+            ensureProviderSettings(providerSettings, 'openai').apiKey = document.getElementById('openaiApiKey').value.trim();
+            ensureProviderSettings(providerSettings, 'anthropic').apiKey = document.getElementById('anthropicApiKey').value.trim();
+            ensureProviderSettings(providerSettings, 'custom').apiKey = document.getElementById('customApiKey').value.trim();
+            ensureProviderSettings(providerSettings, 'ollama').baseUrl = document.getElementById('ollamaBaseUrl').value.trim();
+            ensureProviderSettings(providerSettings, 'lmstudio').baseUrl = document.getElementById('lmStudioBaseUrl').value.trim();
+            ensureProviderSettings(providerSettings, 'custom').baseUrl = document.getElementById('customBaseUrl').value.trim();
+
+            ensureProviderSettings(providerSettings, transcriptionProvider).transcriptionModel = document.getElementById('transcriptionModel').value.trim();
+            ensureProviderSettings(providerSettings, chatProvider).chatModel = document.getElementById('chatModel').value.trim();
+
+            const settings = {
+                transcriptionProvider,
+                chatProvider,
+                providerSettings
+            };
+            
+            electronAPI.updateSettings(settings).then(() => {
+                settingsSnapshot = {
+                    ...(settingsSnapshot || {}),
+                    ...settings
+                };
+                closeSettingsModal();
+            }).catch(error => {
+                console.error('Failed to save settings:', error);
+                alert('Failed to save settings. Please try again.');
+            });
+        }
+        
+        function updateApiKeyFields() {
+            const transcriptionProvider = document.getElementById('transcriptionProvider').value;
+            const chatProvider = document.getElementById('chatProvider').value;
+            const groqApiKeyField = document.getElementById('groqApiKeyField');
+            const openaiApiKeyField = document.getElementById('openaiApiKeyField');
+            const anthropicApiKeyField = document.getElementById('anthropicApiKeyField');
+            const ollamaBaseUrlField = document.getElementById('ollamaBaseUrlField');
+            const lmStudioBaseUrlField = document.getElementById('lmStudioBaseUrlField');
+            const customBaseUrlField = document.getElementById('customBaseUrlField');
+            const customApiKeyField = document.getElementById('customApiKeyField');
+
+            const allFields = [
+                groqApiKeyField,
+                openaiApiKeyField,
+                anthropicApiKeyField,
+                ollamaBaseUrlField,
+                lmStudioBaseUrlField,
+                customBaseUrlField,
+                customApiKeyField
+            ];
+
+            const showField = (field, shouldShow) => {
+                if (!field) return;
+                field.classList.toggle('hidden', !shouldShow);
+                field.style.display = shouldShow ? 'block' : 'none';
+            };
+
+            allFields.forEach((field) => showField(field, false));
+            
+            const showProviderFields = (provider) => {
+                if (provider === 'groq') showField(groqApiKeyField, true);
+                if (provider === 'openai') showField(openaiApiKeyField, true);
+                if (provider === 'anthropic') showField(anthropicApiKeyField, true);
+                if (provider === 'ollama') showField(ollamaBaseUrlField, true);
+                if (provider === 'lmstudio') showField(lmStudioBaseUrlField, true);
+                if (provider === 'custom') {
+                    showField(customBaseUrlField, true);
+                    showField(customApiKeyField, true);
+                }
+            };
+            
+            showProviderFields(transcriptionProvider);
+            showProviderFields(chatProvider);
+            updateModelInputs();
+        }
+        
         function saveResumeContext() {
             resumeContext = resumeInput.value.trim();
             closeResumeModal();
@@ -1209,6 +1691,7 @@
             closeJobDescriptionModal();
         }
         
+        
         // Event listeners for context buttons
         resumeButton.addEventListener('click', openResumeModal);
         jobDescriptionButton.addEventListener('click', openJobDescriptionModal);
@@ -1218,6 +1701,31 @@
         discardResume.addEventListener('click', discardResumeContext);
         saveJobDescription.addEventListener('click', saveJobDescriptionContext);
         discardJobDescription.addEventListener('click', discardJobDescriptionContext);
+        
+        // Settings modal event listeners
+        settingsButton.addEventListener('click', openSettingsModal);
+        saveSettings.addEventListener('click', onSaveSettings);
+        discardSettings.addEventListener('click', closeSettingsModal);
+        
+        // Provider change listeners
+        document.getElementById('transcriptionProvider').addEventListener('change', updateApiKeyFields);
+        document.getElementById('chatProvider').addEventListener('change', updateApiKeyFields);
+
+        document.querySelectorAll('.reveal-secret').forEach(button => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-target');
+                const targetInput = document.getElementById(targetId);
+                const icon = button.querySelector('i');
+
+                if (!targetInput) return;
+
+                const isPassword = targetInput.type === 'password';
+                targetInput.type = isPassword ? 'text' : 'password';
+                if (icon) {
+                    icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+                }
+            });
+        });
         
         // Close modals when clicking outside
         resumeModal.addEventListener('click', (e) => {
@@ -1232,6 +1740,12 @@
             }
         });
         
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                closeSettingsModal();
+            }
+        });
+        
         // Close modals with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -1240,6 +1754,9 @@
                 }
                 if (!jobDescriptionModal.classList.contains('hidden')) {
                     closeJobDescriptionModal();
+                }
+                if (!settingsModal.classList.contains('hidden')) {
+                    closeSettingsModal();
                 }
             }
         });
@@ -1319,7 +1836,7 @@
                         const base64Audio = await window.recordingService.stop();
                         
                         // Send audio data to main process for transcription with context
-                        ipcRenderer.send('audio-data-with-context', {
+                        sendIPC('audio-data-with-context', {
                             audio: base64Audio,
                             resume: resumeContext,
                             jobDescription: jobDescriptionContext
@@ -1371,7 +1888,31 @@
             updateStatus('Conversation reset. Press microphone or spacebar to start recording');
             
             // Tell main process to reset transcript
-            ipcRenderer.send('reset-transcript');
+            sendIPC('reset-transcript');
+        }
+
+        function goBackToMainMenu() {
+            if (isRecording && window.recordingService) {
+                try {
+                    window.recordingService.cleanup();
+                } catch (error) {
+                    console.error('Cleanup failed while going back:', error);
+                }
+            }
+
+            isRecording = false;
+            isProcessingToggle = false;
+            window.recordingService = null;
+
+            micButton.classList.remove('recording');
+            micButton.innerHTML = '<i class="fas fa-microphone"></i>';
+            screenSharingToggle.checked = false;
+            document.getElementById('screenSharingIndicator').style.display = 'none';
+            sendIPC('toggle-screen-sharing-mode', false);
+
+            welcomeScreen.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            updateStatus('Press microphone button or spacebar to start recording');
         }
         
         // Mic button click handler
@@ -1379,6 +1920,9 @@
         
         // Reset button click handler
         resetButton.addEventListener('click', resetConversation);
+
+        // Back button click handler
+        backButton.addEventListener('click', goBackToMainMenu);
         
         // Submit question button click handler
         submitQuestion.addEventListener('click', submitTypedQuestion);
@@ -1424,20 +1968,20 @@
             }
             
             // Then tell main process to apply the actual exclusion
-            ipcRenderer.send('toggle-screen-sharing-mode', isHideMode);
+            sendIPC('toggle-screen-sharing-mode', isHideMode);
         });
         
         // IPC event handlers
         
         // Handle live transcript updates
-        ipcRenderer.on('transcript', (event, text) => {
+        onIPC('transcript', (event, text) => {
             if (text && text.trim() && text !== 'Recording...') {
                 updateLiveTranscript(text);
             }
         });
 
         // Handle answers
-        ipcRenderer.on('answer', (event, text) => {
+        onIPC('answer', (event, text) => {
             // Get transcript text
             const transcript = transcriptText.textContent;
             
@@ -1478,19 +2022,19 @@
         });
         
         // Handle answer status updates
-        ipcRenderer.on('answer-status', (event, message) => {
+        onIPC('answer-status', (event, message) => {
             updateStatus(message);
         });
         
         // Handle transcription errors
-        ipcRenderer.on('transcription-error', (event, errorMessage) => {
+        onIPC('transcription-error', (event, errorMessage) => {
             console.error('Transcription error:', errorMessage);
             addMessage(`Error: ${errorMessage}`, false);
             updateStatus('Error during transcription. Please try again.');
         });
         
         // Handle system audio recording errors
-        ipcRenderer.on('system-audio-recording-error', (event, errorMessage) => {
+        onIPC('system-audio-recording-error', (event, errorMessage) => {
             console.error('System audio recording error:', errorMessage);
             addMessage(`Error: ${errorMessage}`, false);
             updateStatus('Error during recording. Please try again.');
@@ -1504,12 +2048,12 @@
         });
         
         // Handle system audio recording started
-        ipcRenderer.on('system-audio-recording-started', () => {
+        onIPC('system-audio-recording-started', () => {
             console.log('System audio recording started signal received');
         });
 
         // Handle system audio recording stopped
-        ipcRenderer.on('system-audio-recording-stopped', () => {
+        onIPC('system-audio-recording-stopped', () => {
             console.log('System audio recording stopped signal received');
             
             // Update UI if needed

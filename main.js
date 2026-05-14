@@ -1,8 +1,8 @@
 const { app, BrowserWindow, ipcMain, systemPreferences, desktopCapturer } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const GroqService = require('./groq-service')
-const { groqApiKey } = require('./load-env')
+const llmService = require('./llm-service')
+const config = require('./config')
 
 // Global variables
 let mainWindow = null
@@ -13,8 +13,8 @@ let conversationHistory = []
 
 // Create a backup of window position and size for restoring
 let windowState = {
-  width: 500,
-  height: 400,
+  width: 560,
+  height: 760,
   x: null,
   y: null
 };
@@ -38,8 +38,10 @@ function getCredentialsPath() {
 function createWindow() {
   // Configure window options with screen sharing compatibility in mind
   const windowOptions = {
-    width: 500,
-    height: 400,
+    width: 560,
+    height: 760,
+    minWidth: 380,
+    minHeight: 620,
     alwaysOnTop: true,
     transparent: false,
     frame: true,
@@ -119,7 +121,7 @@ ipcMain.on('toggle-recording', async (event, isStarting) => {
         console.log('Combined audio buffer size:', combinedBuffer.length);
         
         // Transcribe the combined audio
-        const transcription = await GroqService.transcribeAudio(combinedBuffer);
+        const transcription = await llmService.transcribeAudio(combinedBuffer);
         
         if (transcription) {
           console.log('Transcription:', transcription);
@@ -128,8 +130,8 @@ ipcMain.on('toggle-recording', async (event, isStarting) => {
           // Send transcription to renderer
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('transcript', transcription);
-            // Automatically get answer from Groq
-            await getGroqAnswer(transcription);
+            // Automatically get answer from AI service
+            await getAIAnswer(transcription);
           }
         } else {
           console.log('No transcription available');
@@ -176,29 +178,29 @@ ipcMain.on('stream-audio-chunk', async (event, audioChunk) => {
   }
 });
 
-// Function to get AI response using Groq
-async function getGroqAnswer(transcript) {
+// Function to get AI response from AI service
+async function getAIAnswer(transcript) {
   try {
     if (!transcript || transcript.trim().length === 0) {
-      console.log('Empty transcript, not sending to Groq');
+      console.log('Empty transcript, not sending to AI service');
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('answer', 'I couldn\'t hear anything. Please try again.');
       }
       return;
     }
 
-    console.log('Sending to Groq:', transcript);
+    console.log('Sending transcript to AI service:', transcript);
     
     // Send status update
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('answer-status', 'Generating answer...');
     }
 
-    // Get response from Groq
-    const answer = await GroqService.getAIResponse(transcript);
+    // Get response from AI service
+    const answer = await llmService.getAIResponse(transcript);
     
     if (answer) {
-      console.log('Received answer from Groq:', answer);
+      console.log('Received answer from AI service:', answer);
       
       // Explicitly send answer to UI
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -209,7 +211,7 @@ async function getGroqAnswer(transcript) {
         console.error('Main window not available for sending answer');
       }
     } else {
-      console.error('No answer content in Groq response');
+      console.error('No answer content in AI service response');
       
       // Send appropriate error message
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -217,7 +219,7 @@ async function getGroqAnswer(transcript) {
       }
     }
   } catch (error) {
-    console.error('Groq API error:', error);
+    console.error('AI service API error:', error);
     
     // Provide more specific error message
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -230,18 +232,18 @@ async function getGroqAnswer(transcript) {
   }
 }
 
-// Function to get AI response using Groq with context
-async function getGroqAnswerWithContext(question, resume, jobDescription) {
+// Function to get AI response from AI service with context
+async function getAIAnswerWithContext(question, resume, jobDescription) {
   try {
     if (!question || question.trim().length === 0) {
-      console.log('Empty question, not sending to Groq');
+      console.log('Empty question, not sending to AI service');
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('answer', 'I couldn\'t understand your question. Please try again.');
       }
       return;
     }
 
-    console.log('Sending to Groq with context:', question);
+    console.log('Sending to AI service with context:', question);
     
     // Send status update
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -285,11 +287,11 @@ async function getGroqAnswerWithContext(question, resume, jobDescription) {
       fullPrompt = truncatedContext + truncatedQuestion;
     }
 
-    // Get response from Groq with conversation history
-    const answer = await GroqService.getAIResponse(fullPrompt, conversationHistory);
+    // Get response from AI service with conversation history
+    const answer = await llmService.getAIResponse(fullPrompt, conversationHistory);
     
     if (answer && answer.trim().length > 0) {
-      console.log('Received answer from Groq:', answer);
+      console.log('Received answer from AI service:', answer);
       
       // Add the interaction to conversation history
       conversationHistory.push({ role: "user", content: fullPrompt });
@@ -308,7 +310,7 @@ async function getGroqAnswerWithContext(question, resume, jobDescription) {
         console.error('Main window not available for sending answer');
       }
     } else {
-      console.error('No answer content in Groq response');
+      console.error('No answer content in AI service response');
       
       // Send appropriate error message
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -316,7 +318,7 @@ async function getGroqAnswerWithContext(question, resume, jobDescription) {
       }
     }
   } catch (error) {
-    console.error('Groq API error:', error);
+    console.error('AI service API error:', error);
     
     // Provide more specific error message
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -462,7 +464,7 @@ ipcMain.on('toggle-screen-sharing-mode', (event, isScreenSharing) => {
 
 ipcMain.on('get-answer', async (event, transcript) => {
   // For backward compatibility, call without context
-  await getGroqAnswerWithContext(transcript, '', '');
+  await getAIAnswerWithContext(transcript, '', '');
 })
 
 ipcMain.on('new-chat', () => {
@@ -512,10 +514,10 @@ ipcMain.on('audio-data', async (event, base64Audio) => {
       return;
     }
 
-    // Transcribe audio using Groq
-    console.log('Sending audio to Groq for transcription...');
+    // Transcribe audio using LLM service
+    console.log('Sending audio to LLM service for transcription...');
     try {
-      const transcription = await GroqService.transcribeAudio(audioBuffer);
+      const transcription = await llmService.transcribeAudio(audioBuffer);
       
       if (transcription) {
         console.log('Transcription:', transcription);
@@ -524,8 +526,8 @@ ipcMain.on('audio-data', async (event, base64Audio) => {
         // Send transcription to renderer
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('transcript', transcription);
-          // Automatically get answer from Groq without context for backward compatibility
-          await getGroqAnswerWithContext(transcription, '', '');
+          // Automatically get answer from LLM service without context for backward compatibility
+          await getAIAnswerWithContext(transcription, '', '');
         }
       } else {
         console.log('No transcription available');
@@ -534,7 +536,7 @@ ipcMain.on('audio-data', async (event, base64Audio) => {
         }
       }
     } catch (error) {
-      console.error('Error transcribing audio with Groq:', error);
+      console.error('Error transcribing audio with AI service:', error);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('transcript', `Error: ${error.message || 'Unknown error'}`);
       }
@@ -550,7 +552,7 @@ ipcMain.on('audio-data', async (event, base64Audio) => {
 // Handle get-answer-with-context IPC event
 ipcMain.on('get-answer-with-context', async (event, data) => {
   const { question, resume, jobDescription } = data;
-  await getGroqAnswerWithContext(question, resume, jobDescription);
+  await getAIAnswerWithContext(question, resume, jobDescription);
 });
 
 // Handle audio-data-with-context IPC event
@@ -578,10 +580,10 @@ ipcMain.on('audio-data-with-context', async (event, data) => {
       return;
     }
 
-    // Transcribe audio using Groq
-    console.log('Sending audio to Groq for transcription...');
+    // Transcribe audio using LLM service
+    console.log('Sending audio to LLM service for transcription...');
     try {
-      const transcription = await GroqService.transcribeAudio(audioBuffer);
+      const transcription = await llmService.transcribeAudio(audioBuffer);
       
       if (transcription) {
         console.log('Transcription:', transcription);
@@ -590,8 +592,8 @@ ipcMain.on('audio-data-with-context', async (event, data) => {
         // Send transcription to renderer
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('transcript', transcription);
-          // Automatically get answer from Groq with context
-          await getGroqAnswerWithContext(transcription, resume, jobDescription);
+          // Automatically get answer from LLM service with context
+          await getAIAnswerWithContext(transcription, resume, jobDescription);
         }
       } else {
         console.log('No transcription available');
@@ -600,7 +602,7 @@ ipcMain.on('audio-data-with-context', async (event, data) => {
         }
       }
     } catch (error) {
-      console.error('Error transcribing audio with Groq:', error);
+      console.error('Error transcribing audio with AI service:', error);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('transcript', `Error: ${error.message || 'Unknown error'}`);
       }
@@ -611,6 +613,16 @@ ipcMain.on('audio-data-with-context', async (event, data) => {
       mainWindow.webContents.send('transcript', `Error: ${error.message || 'Unknown error'}`);
     }
   }
+});
+
+// Settings IPC handlers
+ipcMain.handle('get-settings', async () => {
+  return config.getConfig();
+});
+
+ipcMain.handle('update-settings', async (event, settings) => {
+  config.updateConfig(settings);
+  return true;
 });
 
 // Optimize audio processing by reducing buffer size check
