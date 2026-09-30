@@ -116,7 +116,7 @@ function createWindow() {
       : fs.existsSync(path.join(__dirname, 'build/chrome-icon.png'))
         ? path.join(__dirname, 'build/chrome-icon.png')
         : path.join(__dirname, 'assets/icons/icon.png'),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#07080d',
     titleBarStyle: 'default',
     webPreferences: {
       nodeIntegration: true,
@@ -150,8 +150,27 @@ function createWindow() {
     app.setAppUserModelId('com.helply.assistant');
   }
   
-  // Log when window is created
+  // Invisible to screen capture, including a full-screen share, while staying
+  // visible and usable on this machine. Applied before the window is shown.
+  excludeFromCapture(mainWindow);
+  mainWindow.on('ready-to-show', () => excludeFromCapture(mainWindow));
   console.log('Main window created');
+}
+
+function excludeFromCapture(win) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.setContentProtection(true);
+    if (process.platform === 'darwin') {
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      win.setAlwaysOnTop(true, 'floating', 1);
+    } else if (process.platform === 'win32') {
+      win.setAlwaysOnTop(true, 'screen-saver', 1);
+    }
+    isInScreenSharingMode = true;
+  } catch (error) {
+    console.error('Could not exclude the window from screen capture:', error);
+  }
 }
 
 // Update the toggle-recording handler to provide immediate feedback

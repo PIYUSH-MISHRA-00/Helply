@@ -16,11 +16,11 @@
             --danger: #ef4444;
             --success: #10b981;
             --warning: #f59e0b;
-            --text: #1e293b;
-            --text-light: #64748b;
-            --background: #f8fafc;
-            --card: #ffffff;
-            --border: #e2e8f0;
+            --text: #eef0f6;
+            --text-light: #9aa3b8;
+            --background: #07080d;
+            --card: #10141c;
+            --border: rgba(255, 255, 255, 0.1);
             --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -434,7 +434,7 @@
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
-            background-color: rgba(246, 248, 252, 0.5);
+            background-color: #07080d;
         }
         
         .message {
@@ -567,7 +567,7 @@
         }
         
         .message-ai .message-content {
-            background-color: white;
+            background-color: #171c27;
             color: var(--text);
             border-radius: var(--radius-sm) var(--radius) var(--radius) var(--radius-sm);
             border-left: 4px solid var(--success);
@@ -616,7 +616,7 @@
         
         /* Update live transcript styling for new position */
         .live-transcript {
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: #121722;
             padding: 0.6rem 0.8rem;
             margin: 0;
             border-top: 1px solid var(--border);
@@ -665,7 +665,7 @@
             flex-direction: column;
             align-items: center;
             padding: 0.9rem;
-            background-color: white;
+            background-color: #0d1118;
             border-top: 1px solid var(--border);
         }
         
@@ -904,7 +904,7 @@
         .toggle-text {
             font-size: 0.7rem;
             margin-left: 0.25rem;
-            color: #6b7280;
+            color: #c4b5fd;
         }
         
         /* Text input styles */
@@ -923,6 +923,16 @@
             border-radius: var(--radius);
             font-size: 0.875rem;
             font-family: 'Inter', system-ui, sans-serif;
+            background: #07080d;
+            color: var(--text);
+        }
+
+        #welcomeScreen.collapsed {
+            display: contents;
+        }
+
+        #welcomeScreen.collapsed > :not(.context-modal) {
+            display: none !important;
         }
         
         .question-input:focus {
@@ -1002,7 +1012,7 @@
                 <h2 class="product-name">Helply</h2>
                 <h1 class="subtitle">AI Meeting Assistant</h1>
                 <p class="product-description">
-                    Silent, Smart, and Always On top
+                    Hidden from screen share, including a full-screen share, and listening on its own.
                 </p>
             </div>
             
@@ -1180,12 +1190,15 @@
                     <button id="backButton" class="back-button" title="Back to Main Menu">
                         <i class="fas fa-arrow-left"></i>
                     </button>
+                    <button id="liveSettings" class="reset-button" type="button" title="Settings">
+                        <i class="fas fa-cog"></i>
+                    </button>
                     <!-- Hide toggle moved here -->
                     <div class="toggle-container">
                         <div class="toggle-switch compact">
-                            <input type="checkbox" id="screenSharingMode" class="toggle-input">
+                            <input type="checkbox" id="screenSharingMode" class="toggle-input" checked>
                             <label for="screenSharingMode" class="toggle-label"></label>
-                            <span class="toggle-text">Hide</span>
+                            <span class="toggle-text">Hidden</span>
                         </div>
                     </div>
                 </div>
@@ -1199,7 +1212,7 @@
                 </div>
                 
                 <div id="statusText" class="status-text">
-                    Listening starts when you open the assistant
+                    Listening starts on its own. This window is hidden from screen share.
                 </div>
             </div>
         </div>
@@ -1868,11 +1881,16 @@
             updateStatus('Listening paused.');
         }
 
-        startAppButton.addEventListener('click', async () => {
+        async function enterAssistant() {
             resumeContext = resumeInput.value.trim();
             jobDescriptionContext = jobDescriptionInput.value.trim();
-            welcomeScreen.classList.add('hidden');
+            welcomeScreen.classList.add('collapsed');
             appContent.classList.remove('hidden');
+            screenSharingToggle.checked = true;
+            const indicator = document.getElementById('screenSharingIndicator');
+            indicator.style.display = 'flex';
+            indicator.innerHTML = '<i class="fas fa-eye-slash"></i> Hidden from screen share';
+            sendIPC('toggle-screen-sharing-mode', true);
             try {
                 await startAutoListen();
             } catch (error) {
@@ -1880,7 +1898,10 @@
                 addMessage(`Could not start listening: ${error.message}`, false);
                 updateStatus('Listening failed. Click the microphone to try again.');
             }
-        });
+        }
+
+        startAppButton.addEventListener('click', enterAssistant);
+        document.getElementById('liveSettings').addEventListener('click', () => settingsButton.click());
         
         // Reset conversation
         function resetConversation() {
@@ -1904,13 +1925,9 @@
 
         function goBackToMainMenu() {
             stopAutoListen();
-            screenSharingToggle.checked = false;
-            document.getElementById('screenSharingIndicator').style.display = 'none';
-            sendIPC('toggle-screen-sharing-mode', false);
-
-            welcomeScreen.classList.remove('hidden');
+            welcomeScreen.classList.remove('collapsed');
             appContent.classList.add('hidden');
-            updateStatus('Listening starts when you open the assistant');
+            updateStatus('Listening starts on its own. This window is hidden from screen share.');
         }
 
         micButton.addEventListener('click', async () => {
@@ -2002,6 +2019,8 @@
             updateStatus('Error during recording. Please try again.');
             
         });
+
+        enterAssistant();
     </script>
 </body>
 </html>

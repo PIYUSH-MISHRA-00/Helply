@@ -114,7 +114,8 @@ If your custom endpoint does not support transcription, use another provider for
 - Speaker audio (the other person) is transcribed and answered. Your microphone is transcribed and kept in the chat, and it is ignored while the speaker is talking.
 - The microphone button pauses or resumes listening.
 - Type questions manually in the input box.
-- Use `Hide` toggle when screen sharing.
+- The window is excluded from screen capture as soon as it opens, including a full-screen share, and it stays on your screen so you can keep reading. The Hidden switch turns that off.
+- Listening starts on its own. The microphone button only pauses it.
 - Add resume/job-description context to improve responses.
 
 ## Development scripts
