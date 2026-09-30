@@ -117,6 +117,10 @@ If your custom endpoint does not support transcription, use another provider for
 - Use `Hide` toggle when screen sharing.
 - Add resume/job-description context to improve responses.
 
+## Browser extension
+
+The Chrome extension lives in `extension/` on the `browser-extension` branch. Load that folder from `chrome://extensions` with Developer mode on. Setup steps are in `extension/README.md`.
+
 ## Development scripts
 
 - `npm start`

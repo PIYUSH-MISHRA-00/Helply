@@ -1,0 +1,103 @@
+{
+  "providers": {
+    "groq": {
+      "name": "Groq",
+      "description": "Fast cloud inference with OpenAI-compatible APIs",
+      "type": "openai_compatible",
+      "transcription": {
+        "enabled": true,
+        "models": ["whisper-large-v3"],
+        "defaultModel": "whisper-large-v3"
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "openai/gpt-oss-120b"],
+        "defaultModel": "llama-3.3-70b-versatile"
+      },
+      "apiKeyRequired": true,
+      "apiKeyPrefix": "gsk_",
+      "baseUrl": "https://api.groq.com/openai/v1"
+    },
+    "openai": {
+      "name": "OpenAI",
+      "description": "GPT models from OpenAI",
+      "type": "openai_compatible",
+      "transcription": {
+        "enabled": true,
+        "models": ["whisper-1", "gpt-4o-mini-transcribe"],
+        "defaultModel": "whisper-1"
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"],
+        "defaultModel": "gpt-4o-mini"
+      },
+      "apiKeyRequired": true,
+      "apiKeyPrefix": "sk-",
+      "baseUrl": "https://api.openai.com/v1"
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "description": "Claude models from Anthropic",
+      "type": "anthropic",
+      "transcription": {
+        "enabled": false
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"],
+        "defaultModel": "claude-3-5-sonnet-latest"
+      },
+      "apiKeyRequired": true,
+      "apiKeyPrefix": "sk-ant-",
+      "baseUrl": "https://api.anthropic.com"
+    },
+    "ollama": {
+      "name": "Ollama (Local)",
+      "description": "Run models locally with Ollama",
+      "type": "ollama",
+      "transcription": {
+        "enabled": false
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["llama3.1", "qwen2.5", "mistral", "phi3"],
+        "defaultModel": "llama3.1"
+      },
+      "apiKeyRequired": false,
+      "baseUrl": "http://localhost:11434"
+    },
+    "lmstudio": {
+      "name": "LM Studio (Local)",
+      "description": "Local models via LM Studio server",
+      "type": "openai_compatible",
+      "transcription": {
+        "enabled": false
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["local-model", "qwen", "llama"],
+        "defaultModel": "local-model"
+      },
+      "apiKeyRequired": false,
+      "baseUrl": "http://localhost:1234"
+    },
+    "custom": {
+      "name": "Any OpenAI-Compatible",
+      "description": "Use any local or cloud endpoint that supports OpenAI-style APIs",
+      "type": "openai_compatible",
+      "transcription": {
+        "enabled": true,
+        "models": ["whisper-1", "gpt-4o-mini-transcribe", "custom-transcribe-model"],
+        "defaultModel": "whisper-1"
+      },
+      "chat": {
+        "enabled": true,
+        "models": ["gpt-4o-mini", "gpt-4.1-mini", "custom-chat-model"],
+        "defaultModel": "gpt-4o-mini"
+      },
+      "apiKeyRequired": false,
+      "baseUrl": "https://your-api-endpoint.com/v1"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: #111827;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+header, #live, form, .row, details { padding: 8px 10px; }
+header { background: #111827; color: #fff; }
+header p { margin: 6px 0 0; font-size: 12px; color: #e5e7eb; }
+#live { background: #fff; border-bottom: 1px solid #e5e7eb; }
+#live div { margin: 2px 0; }
+#chat { flex: 1; overflow: auto; padding: 10px; }
+.msg { margin: 0 0 8px; padding: 8px; border-radius: 8px; white-space: pre-wrap; }
+.user { background: #e0e7ff; }
+.ai { background: #fff; border: 1px solid #e5e7eb; }
+form, .row { display: flex; gap: 6px; }
+input, select, textarea, button { font: inherit; }
+#question { flex: 1; }
+button {
+  border: 0;
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+button.secondary, #reset, #test { background: #e5e7eb; color: #111827; }
+#status, #settingsStatus { margin: 0; padding: 0 10px 8px; color: #4b5563; }
+details { background: #fff; border-top: 1px solid #e5e7eb; }
+label { display: block; margin: 8px 0; }
+input, select, textarea { width: 100%; margin-top: 3px; padding: 6px; }

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Helply",
+  "version": "1.0.0",
+  "description": "Listens to a meeting tab and your microphone, then answers with any model you configure.",
+  "permissions": ["tabCapture", "sidePanel", "storage", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Helply"
+  }
+}

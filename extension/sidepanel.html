@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Helply</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header>
+    <strong>Helply</strong>
+    <p id="stealth">Share the meeting tab, not your whole screen. This panel sits outside the tab, so it stays out of that share.</p>
+  </header>
+
+  <section id="live">
+    <div><b>Speaker</b> <span id="speakerLive">Waiting…</span></div>
+    <div><b>You</b> <span id="micLive">Waiting…</span></div>
+  </section>
+
+  <div id="chat"></div>
+
+  <form id="ask">
+    <input id="question" type="text" placeholder="Type a question" autocomplete="off">
+    <button type="submit">Send</button>
+  </form>
+
+  <div class="row">
+    <button id="listen" type="button">Start listening</button>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <p id="status">Open the meeting tab, then start. Listening stays on after that.</p>
+
+  <details id="settingsBox">
+    <summary>Model and provider</summary>
+    <label>Transcription provider <select id="transcriptionProvider"></select></label>
+    <label>API key <input id="transcriptionKey" type="password" autocomplete="off"></label>
+    <label>Base URL <input id="transcriptionBase" type="text"></label>
+    <label>Transcription model <input id="transcriptionModel" type="text"></label>
+    <label>Chat provider <select id="chatProvider"></select></label>
+    <label>API key <input id="chatKey" type="password" autocomplete="off"></label>
+    <label>Base URL <input id="chatBase" type="text"></label>
+    <label>Chat model <input id="chatModel" type="text"></label>
+    <label>Resume <textarea id="resume" rows="3"></textarea></label>
+    <label>Job description <textarea id="job" rows="3"></textarea></label>
+    <div class="row">
+      <button id="save" type="button">Save</button>
+      <button id="test" type="button">Test chat</button>
+    </div>
+    <p id="settingsStatus"></p>
+  </details>
+
+  <script src="listen.js"></script>
+  <script src="llm.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
