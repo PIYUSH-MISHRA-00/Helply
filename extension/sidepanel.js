@@ -4,7 +4,7 @@ const JUNK = new Set([
 
 const speakerLive = document.getElementById('speakerLive');
 const micLive = document.getElementById('micLive');
-const chat = document.getElementById('chat');
+const chatLog = document.getElementById('chat');
 const statusEl = document.getElementById('status');
 const settingsStatus = document.getElementById('settingsStatus');
 const listenBtn = document.getElementById('listen');
@@ -14,9 +14,6 @@ const chatSelect = document.getElementById('chatProvider');
 let providers = {};
 let settings = { providers: {}, resume: '', jobDescription: '' };
 let listening = false;
-let micHandle = null;
-let speakerHot = false;
-let speakerQuietUntil = 0;
 let queue = Promise.resolve();
 let history = [];
 
@@ -28,8 +25,8 @@ function addMessage(text, kind) {
   const div = document.createElement('div');
   div.className = `msg ${kind}`;
   div.textContent = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
 }
 
 function draft(name) {
@@ -168,53 +165,37 @@ function takeAudio(source, audio) {
   });
 }
 
+function ensureListener() {
+  if (window.autoListen) return window.autoListen;
+  window.autoListen = new window.HelplyListen.AutoListen({
+    onUtterance: (source, audio) => takeAudio(source, audio),
+    onActivity: (source, active) => {
+      if (active) (source === 'mic' ? micLive : speakerLive).textContent = 'Speaking…';
+    }
+  });
+  return window.autoListen;
+}
+
 async function startListening() {
   rememberVisible();
-  speakerHot = false;
-  const tabPromise = chrome.runtime.sendMessage({ type: 'start-tab-audio' });
-  const micPromise = navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    video: false
-  });
-  const [tab, micStream] = await Promise.all([tabPromise, micPromise]);
-  micHandle = window.HelplyListen.attachListener(micStream, {
-    threshold: 0.018,
-    isBlocked: () => speakerHot || Date.now() < speakerQuietUntil,
-    onActivity: (active) => { if (active) micLive.textContent = 'Speaking…'; },
-    onUtterance: (audio) => takeAudio('mic', audio)
-  });
-  if (!tab || !tab.ok) throw new Error((tab && tab.error) || 'Could not hear the meeting tab');
+  const result = await ensureListener().start();
+  const errors = result.errors || [];
   listening = true;
   listenBtn.textContent = 'Pause listening';
-  speakerLive.textContent = 'Listening…';
-  micLive.textContent = 'Listening…';
-  setStatus(`Listening to ${tab.title}. Speaker and microphone run on their own.`);
+  if (!errors.some((line) => line.startsWith('Speaker'))) speakerLive.textContent = 'Listening…';
+  if (!errors.some((line) => line.startsWith('Microphone'))) micLive.textContent = 'Listening…';
+  setStatus(errors.length
+    ? errors.join(' ')
+    : 'Listening. Speaker and microphone run on their own.');
+  errors.forEach((line) => addMessage(line, 'ai'));
 }
 
 function stopListening() {
-  if (micHandle) micHandle.stop();
-  micHandle = null;
-  chrome.runtime.sendMessage({ type: 'stop-tab-audio' }).catch(() => {});
+  if (window.autoListen) window.autoListen.stop();
   listening = false;
-  speakerHot = false;
   listenBtn.textContent = 'Start listening';
   setStatus('Listening paused.');
 }
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (!message || message.target === 'offscreen') return;
-  if (message.type === 'speaker-hot') {
-    speakerHot = Boolean(message.hot);
-    if (!message.hot) speakerQuietUntil = Date.now() + 600;
-    return;
-  }
-  if (message.type === 'speaker-activity' && message.active) {
-    speakerLive.textContent = 'Speaking…';
-    return;
-  }
-  if (message.type === 'speaker-audio') takeAudio('speaker', message.audio);
-  if (message.type === 'speaker-status' && message.text) setStatus(message.text);
-});
 
 listenBtn.addEventListener('click', async () => {
   try {
@@ -223,13 +204,13 @@ listenBtn.addEventListener('click', async () => {
   } catch (error) {
     stopListening();
     addMessage(error.message, 'ai');
-    setStatus('Could not start. Open the meeting tab and try again.');
+    setStatus('Could not start. Allow the microphone, share the meeting tab with audio, and try again.');
   }
 });
 
 document.getElementById('reset').addEventListener('click', () => {
   history = [];
-  chat.innerHTML = '';
+  chatLog.innerHTML = '';
   speakerLive.textContent = listening ? 'Listening…' : 'Waiting…';
   micLive.textContent = listening ? 'Listening…' : 'Waiting…';
 });

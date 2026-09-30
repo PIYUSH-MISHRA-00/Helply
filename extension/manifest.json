@@ -1,17 +1,28 @@
 {
   "manifest_version": 3,
   "name": "Helply",
-  "version": "1.0.0",
-  "description": "Listens to a meeting tab and your microphone, then answers with any model you configure.",
-  "permissions": ["tabCapture", "sidePanel", "storage", "activeTab"],
+  "version": "1.1.0",
+  "description": "Listens to meeting audio and your microphone, then answers with any model you configure.",
+  "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
-  },
-  "side_panel": {
-    "default_path": "sidepanel.html"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "Helply"
+    "default_title": "Helply",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "helply@helply.app",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["personalCommunications"]
+      }
+    }
   }
 }

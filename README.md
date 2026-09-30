@@ -119,7 +119,7 @@ If your custom endpoint does not support transcription, use another provider for
 
 ## Browser extension
 
-The Chrome extension lives in `extension/` on the `browser-extension` branch. Load that folder from `chrome://extensions` with Developer mode on. Setup steps are in `extension/README.md`.
+The extension lives in `extension/` on the `browser-extension` branch. It loads in Chrome, Edge, Opera, Brave, Vivaldi, and Firefox. Setup steps for each browser are in `extension/README.md`.
 
 ## Development scripts
 

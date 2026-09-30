@@ -1,22 +1,35 @@
 # Helply browser extension
 
-Installs in Chrome (or another Chromium browser) and listens while you are in a meeting tab.
+One package for Chrome, Edge, Opera, Brave, Vivaldi, and Firefox. It listens to the meeting and your microphone on its own, with no key to start or stop each turn.
 
 ## Install
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and choose this `extension` folder.
-4. Pin Helply and click the icon. The side panel opens.
-5. Open **Model and provider**, set the same providers, models, base URLs, and API keys you use in the desktop app, then **Save**.
-6. Open the meeting tab (Meet, Zoom in the browser, or similar). Click **Start listening** once and allow the microphone.
+Unzip `Helply-Extension.zip` first for every browser except Firefox.
 
-After that, no key decides when to listen. The meeting tab is the speaker. Your microphone is tracked on its own and is ignored while the speaker is talking. Speaker turns are answered. Microphone turns are kept in the chat.
+| Browser | Steps |
+|---|---|
+| Chrome | `chrome://extensions` → turn on Developer mode → Load unpacked → pick the unzipped folder |
+| Edge | `edge://extensions` → turn on Developer mode → Load unpacked → pick the unzipped folder |
+| Opera | `opera://extensions` → turn on Developer mode → Load unpacked → pick the unzipped folder |
+| Brave / Vivaldi | `brave://extensions` or `vivaldi://extensions` → Developer mode → Load unpacked |
+| Firefox | `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → pick the zip or `manifest.json` |
 
-## Hidden from a tab share
+Firefox removes temporary add-ons when it closes. Keeping it for good needs a Mozilla-signed build. Internet Explorer has no extension support, so it cannot run Helply.
 
-Share the **meeting tab**, not the whole screen. This panel is outside the tab, so it is not part of that share. A full-screen share includes the browser window, so the panel would be visible.
+## Use
+
+1. Click the Helply icon. The Helply window opens.
+2. Open **Model and provider**, set providers, models, base URLs, and API keys, then **Save**.
+3. Click **Start listening**. Allow the microphone, pick the meeting tab or window, and turn on **Share audio**.
+
+From then on, the shared meeting audio is the speaker and is answered. Your microphone is tracked on its own, kept in the chat, and ignored while the speaker is talking.
+
+Firefox cannot share tab audio yet, so there Helply only hears your microphone. Type the interviewer's question, or use the desktop app for speaker audio.
+
+## Hidden from a screen share
+
+Helply runs in its own window. Share only the meeting tab or window and Helply is not in that share. A full-screen share shows everything, including Helply.
 
 ## Providers
 
-The list is `providers.json`: Groq, OpenAI, Anthropic, Ollama, LM Studio, and any OpenAI-compatible endpoint. Transcription uses `/audio/transcriptions`. Chat uses `/chat/completions`, except Anthropic and Ollama, which use their own APIs. Pick any chat model and any transcription model those providers expose.
+The list is `providers.json`: Groq, OpenAI, Anthropic, Ollama, LM Studio, and any OpenAI-compatible endpoint. Transcription uses `/audio/transcriptions`. Chat uses `/chat/completions`, except Anthropic and Ollama, which use their own APIs.
