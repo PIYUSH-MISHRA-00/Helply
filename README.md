@@ -93,7 +93,9 @@ If your custom endpoint does not support transcription, use another provider for
 
 ## Usage
 
-- Press mic button or `Space` to start/stop recording.
+- Click `Start Assistant`. Speaker audio and the microphone listen on their own. No key to start or stop each turn.
+- Speaker audio (the other person) is transcribed and answered. Your microphone is transcribed and kept in the chat, and it is ignored while the speaker is talking.
+- The microphone button pauses or resumes listening.
 - Type questions manually in the input box.
 - Use `Hide` toggle when screen sharing.
 - Add resume/job-description context to improve responses.

@@ -176,10 +176,15 @@ class OpenAICompatibleProvider extends BaseProvider {
       throw new Error(`No transcription model configured for ${this.runtime.config.name}.`);
     }
 
+    const isWav = audioBuffer.length >= 12 && audioBuffer.toString('ascii', 0, 4) === 'RIFF';
     const formData = new FormData();
     formData.append('model', model);
     formData.append('response_format', 'text');
-    formData.append('file', new Blob([audioBuffer], { type: 'audio/webm' }), 'audio.webm');
+    formData.append(
+      'file',
+      new Blob([audioBuffer], { type: isWav ? 'audio/wav' : 'audio/webm' }),
+      isWav ? 'audio.wav' : 'audio.webm'
+    );
 
     const response = await fetchWithTimeout(
       joinUrl(this.runtime.baseUrl, '/audio/transcriptions'),

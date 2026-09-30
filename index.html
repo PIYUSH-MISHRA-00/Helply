@@ -625,7 +625,7 @@
             color: var(--text-light);
             box-shadow: var(--shadow-sm);
             display: none;
-            max-height: 80px;
+            max-height: 120px;
             overflow-y: auto;
             opacity: 0.9;
             font-size: 0.8rem;
@@ -635,6 +635,17 @@
         .live-transcript.active {
             display: block;
             animation: fadeIn 0.3s ease;
+        }
+
+        .live-line {
+            display: block;
+            margin: 0.15rem 0;
+        }
+
+        .live-tag {
+            font-style: normal;
+            font-weight: 700;
+            margin-right: 0.35rem;
         }
         
         #liveIndicator {
@@ -1145,7 +1156,7 @@
                 <!-- Welcome message -->
                 <div class="message message-ai">
                     <div class="message-content">
-                        Hello! I'm your AI meeting assistant. Press the microphone button or spacebar to start recording.
+                        Hello! I'm your AI meeting assistant. I listen to the speaker and your microphone automatically.
                     </div>
                 </div>
             </div>
@@ -1153,13 +1164,14 @@
             <!-- Live transcript moved here, between chat messages and controls -->
             <div id="liveTranscript" class="live-transcript">
                 <span id="liveIndicator" class="hidden">LIVE</span>
-                <span id="transcriptText">Waiting for speech...</span>
+                <span class="live-line"><span class="live-tag">Speaker</span><span id="speakerLive">Waiting…</span></span>
+                <span class="live-line"><span class="live-tag">You</span><span id="micLive">Waiting…</span></span>
             </div>
             
             <!-- Controls Area -->
             <div class="controls">
                 <div class="control-buttons">
-                    <button id="micButton" class="mic-button">
+                    <button id="micButton" class="mic-button" title="Pause listening">
                         <i class="fas fa-microphone"></i>
                     </button>
                     <button id="resetButton" class="reset-button">
@@ -1187,7 +1199,7 @@
                 </div>
                 
                 <div id="statusText" class="status-text">
-                    Press microphone button or spacebar to start recording
+                    Listening starts when you open the assistant
                 </div>
             </div>
         </div>
@@ -1243,7 +1255,8 @@
         const statusText = document.getElementById('statusText');
         const chatMessages = document.getElementById('chatMessages');
         const liveTranscript = document.getElementById('liveTranscript');
-        const transcriptText = document.getElementById('transcriptText');
+        const speakerLive = document.getElementById('speakerLive');
+        const micLive = document.getElementById('micLive');
         const liveIndicator = document.getElementById('liveIndicator');
         const questionInput = document.getElementById('questionInput');
         const submitQuestion = document.getElementById('submitQuestion');
@@ -1270,8 +1283,7 @@
         const discardSettings = document.getElementById('discardSettings');
         const settingsTestResult = document.getElementById('settingsTestResult');
         
-        let isRecording = false;
-        let isProcessingToggle = false;
+        let listening = false;
         let messages = [];
         let resumeContext = '';
         let jobDescriptionContext = '';
@@ -1455,18 +1467,22 @@
         }
         
         // Function to update live transcript
-        function updateLiveTranscript(text) {
-            if (text && text.trim()) {
-                transcriptText.textContent = text;
-                liveTranscript.classList.add('active');
-                
-                // Make sure live indicator is visible when transcribing
-                if (isRecording) {
-                    liveIndicator.classList.remove('hidden');
-                }
-            } else {
-                liveTranscript.classList.remove('active');
-            }
+        function setLiveLine(source, text) {
+            const line = source === 'mic' ? micLive : speakerLive;
+            if (line) line.textContent = text;
+            liveTranscript.classList.add('active');
+            if (listening) liveIndicator.classList.remove('hidden');
+        }
+
+        function setListeningUi(active) {
+            listening = active;
+            micButton.classList.toggle('recording', active);
+            micButton.innerHTML = active
+                ? '<i class="fas fa-microphone-slash"></i>'
+                : '<i class="fas fa-microphone"></i>';
+            micButton.title = active ? 'Pause listening' : 'Resume listening';
+            liveIndicator.classList.toggle('hidden', !active);
+            if (active) liveTranscript.classList.add('active');
         }
         
         // Update status text
@@ -1811,115 +1827,60 @@
             }
         });
         
-        // Start button click handler
-        startAppButton.addEventListener('click', () => {
-            // Save resume and job description context
+        function ensureAutoListen() {
+            if (window.autoListen) return window.autoListen;
+            const { AutoListen } = require('./listen');
+            window.autoListen = new AutoListen({
+                onUtterance: (source, audio) => {
+                    sendIPC('utterance', {
+                        source,
+                        audio,
+                        resume: resumeContext,
+                        jobDescription: jobDescriptionContext
+                    });
+                },
+                onActivity: (source, active) => {
+                    if (active) setLiveLine(source, 'Speaking…');
+                },
+                onStatus: (errors) => {
+                    if (errors && errors.length) {
+                        addMessage(errors.join(' '), false);
+                    }
+                }
+            });
+            return window.autoListen;
+        }
+
+        async function startAutoListen() {
+            const listener = ensureAutoListen();
+            const result = await listener.start();
+            setListeningUi(true);
+            const speakerDown = (result.errors || []).some((line) => line.startsWith('Speaker:'));
+            const micDown = (result.errors || []).some((line) => line.startsWith('Microphone:'));
+            if (!speakerDown) setLiveLine('speaker', 'Listening…');
+            if (!micDown) setLiveLine('mic', 'Listening…');
+            updateStatus('Listening. Speaker and microphone run on their own.');
+        }
+
+        function stopAutoListen() {
+            if (window.autoListen) window.autoListen.stop();
+            setListeningUi(false);
+            updateStatus('Listening paused.');
+        }
+
+        startAppButton.addEventListener('click', async () => {
             resumeContext = resumeInput.value.trim();
             jobDescriptionContext = jobDescriptionInput.value.trim();
-            
             welcomeScreen.classList.add('hidden');
             appContent.classList.remove('hidden');
-        });
-
-        // Toggle recording function
-        async function toggleRecording() {
             try {
-                // If already processing a toggle, ignore this request
-                if (isProcessingToggle) return;
-                isProcessingToggle = true;
-                
-                // Check recording state and handle accordingly
-                if (!isRecording) {
-                    // Starting a new recording
-                    console.log('Starting audio recording');
-                    
-                    // Update UI
-                    micButton.classList.add('recording');
-                    micButton.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-                    updateStatus('Listening... Click microphone or press spacebar to stop');
-                    
-                    // Show and reset the live transcript
-                    updateLiveTranscript('Listening...');
-                    liveIndicator.classList.remove('hidden');
-                    
-                    // Try dual recording first (both microphone and system audio)
-                    try {
-                        const DualRecordingService = require('./dual-recording');
-                        window.recordingService = new DualRecordingService();
-                        const started = await window.recordingService.start();
-                        
-                        if (!started) {
-                            throw new Error('Dual recording failed to start');
-                        }
-                        
-                        console.log('Dual recording started successfully');
-                    } catch (dualError) {
-                        console.warn('Dual recording failed, falling back to single source recording:', dualError.message);
-                        
-                        // Fallback to regular recording service
-                        const RecordingService = require('./recording');
-                        window.recordingService = new RecordingService();
-                        const started = await window.recordingService.start();
-                        
-                        if (!started) {
-                            throw new Error('Failed to start recording');
-                        }
-                        
-                        console.log('Single source recording started successfully');
-                    }
-                    
-                    isRecording = true;
-                } else {
-                    // Stopping recording
-                    console.log('Stopping audio recording');
-                    
-                    // Update UI immediately
-                    micButton.classList.remove('recording');
-                    micButton.innerHTML = '<i class="fas fa-microphone"></i>';
-                    updateStatus('Processing...');
-                    
-                    // Hide live indicator
-                    liveIndicator.classList.add('hidden');
-                    
-                    // Stop recording and get audio data
-                    if (window.recordingService) {
-                        const base64Audio = await window.recordingService.stop();
-                        
-                        // Send audio data to main process for transcription with context
-                        sendIPC('audio-data-with-context', {
-                            audio: base64Audio,
-                            resume: resumeContext,
-                            jobDescription: jobDescriptionContext
-                        });
-                    }
-                    
-                    isRecording = false;
-                }
-                
-                // Reset the processing flag with a slight delay to prevent double toggles
-                setTimeout(() => {
-                    isProcessingToggle = false;
-                }, 300);
+                await startAutoListen();
             } catch (error) {
-                console.error('Error toggling recording:', error);
-                addMessage(`Error: ${error.message}`, false);
-                
-                // Reset UI
-                micButton.classList.remove('recording');
-                micButton.innerHTML = '<i class="fas fa-microphone"></i>';
-                updateStatus('Error recording. Please try again.');
-                
-                // Reset state
-                isRecording = false;
-                isProcessingToggle = false;
-                
-                // Clean up recording service
-                if (window.recordingService) {
-                    window.recordingService.cleanup();
-                    window.recordingService = null;
-                }
+                setListeningUi(false);
+                addMessage(`Could not start listening: ${error.message}`, false);
+                updateStatus('Listening failed. Click the microphone to try again.');
             }
-        }
+        });
         
         // Reset conversation
         function resetConversation() {
@@ -1935,38 +1896,33 @@
             messages = messages.slice(0, 1);
             
             // Reset status
-            updateStatus('Conversation reset. Press microphone or spacebar to start recording');
+            updateStatus(listening ? 'Listening. Speaker and microphone run on their own.' : 'Listening paused.');
             
             // Tell main process to reset transcript
             sendIPC('reset-transcript');
         }
 
         function goBackToMainMenu() {
-            if (isRecording && window.recordingService) {
-                try {
-                    window.recordingService.cleanup();
-                } catch (error) {
-                    console.error('Cleanup failed while going back:', error);
-                }
-            }
-
-            isRecording = false;
-            isProcessingToggle = false;
-            window.recordingService = null;
-
-            micButton.classList.remove('recording');
-            micButton.innerHTML = '<i class="fas fa-microphone"></i>';
+            stopAutoListen();
             screenSharingToggle.checked = false;
             document.getElementById('screenSharingIndicator').style.display = 'none';
             sendIPC('toggle-screen-sharing-mode', false);
 
             welcomeScreen.classList.remove('hidden');
             appContent.classList.add('hidden');
-            updateStatus('Press microphone button or spacebar to start recording');
+            updateStatus('Listening starts when you open the assistant');
         }
-        
-        // Mic button click handler
-        micButton.addEventListener('click', toggleRecording);
+
+        micButton.addEventListener('click', async () => {
+            try {
+                if (listening) stopAutoListen();
+                else await startAutoListen();
+            } catch (error) {
+                setListeningUi(false);
+                addMessage(`Could not start listening: ${error.message}`, false);
+                updateStatus('Listening failed. Click the microphone to try again.');
+            }
+        });
         
         // Reset button click handler
         resetButton.addEventListener('click', resetConversation);
@@ -1981,19 +1937,6 @@
         questionInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 submitTypedQuestion();
-            }
-        });
-        
-        // Add spacebar handler for toggling recording
-        document.addEventListener('keydown', (event) => {
-            // Check if key is spacebar and not in an input field
-            if (event.code === 'Space' && 
-                document.activeElement.tagName !== 'INPUT' && 
-                document.activeElement.tagName !== 'TEXTAREA') {
-                // Prevent default scrolling behavior
-                event.preventDefault();
-                // Toggle recording
-                toggleRecording();
             }
         });
         
@@ -2023,52 +1966,21 @@
         
         // IPC event handlers
         
-        // Handle live transcript updates
-        onIPC('transcript', (event, text) => {
-            if (text && text.trim() && text !== 'Recording...') {
-                updateLiveTranscript(text);
-            }
+        onIPC('speaker-transcript', (event, text) => {
+            if (!text) return;
+            setLiveLine('speaker', text);
+            addMessage(text, true);
         });
 
-        // Handle answers
+        onIPC('mic-transcript', (event, text) => {
+            if (!text) return;
+            setLiveLine('mic', text);
+            addMessage(`You: ${text}`, true);
+        });
+
         onIPC('answer', (event, text) => {
-            // Get transcript text
-            const transcript = transcriptText.textContent;
-            
-            // Check if this is a typed question (no valid transcript) or speech transcription
-            const isTypedQuestion = !transcript || 
-                                  transcript === 'Waiting for speech...' || 
-                                  transcript === 'Listening...' || 
-                                  transcript === 'Listening to system audio...';
-            
-            if (isTypedQuestion) {
-                // For typed questions, we don't need to add the transcript as a message
-                // The question was already added when the user submitted it
-                // Just add the answer
-                if (text && text.trim()) {
-                    addMessage(text, false);
-                } else {
-                    addMessage('No answer received. Please try again.', false);
-                }
-            } else {
-                // For speech transcriptions, add both transcript and answer
-                if (transcript && transcript !== 'Listening...' && transcript !== 'Waiting for speech...') {
-                    // Add the transcript as a user message
-                    addMessage(transcript, true);
-                    
-                    // Add the answer
-                    if (text && text.trim()) {
-                        addMessage(text, false);
-                    } else {
-                        addMessage('No answer received. Please try again.', false);
-                    }
-                } else {
-                    addMessage('No speech detected. Please try again.', false);
-                }
-            }
-            
-            // Update status
-            updateStatus('Press microphone or spacebar to start recording');
+            addMessage(text && text.trim() ? text : 'No answer received. Please try again.', false);
+            if (listening) updateStatus('Listening. Speaker and microphone run on their own.');
         });
         
         // Handle answer status updates
@@ -2089,29 +2001,6 @@
             addMessage(`Error: ${errorMessage}`, false);
             updateStatus('Error during recording. Please try again.');
             
-            // Reset UI
-            if (isRecording) {
-                isRecording = false;
-                micButton.classList.remove('recording');
-                micButton.innerHTML = '<i class="fas fa-microphone"></i>';
-            }
-        });
-        
-        // Handle system audio recording started
-        onIPC('system-audio-recording-started', () => {
-            console.log('System audio recording started signal received');
-        });
-
-        // Handle system audio recording stopped
-        onIPC('system-audio-recording-stopped', () => {
-            console.log('System audio recording stopped signal received');
-            
-            // Update UI if needed
-            if (isRecording) {
-                isRecording = false;
-                micButton.classList.remove('recording');
-                micButton.innerHTML = '<i class="fas fa-microphone"></i>';
-            }
         });
     </script>
 </body>

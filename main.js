@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, systemPreferences, desktopCapturer } = require('electron')
+const { app, BrowserWindow, ipcMain, session, systemPreferences, desktopCapturer } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const llmService = require('./llm-service')
@@ -32,6 +32,67 @@ function getCredentialsPath() {
   } else {
     return path.join(__dirname, 'helply-credentials.json')
   }
+}
+
+function enableSystemAudioLoopback() {
+  const ses = session.defaultSession;
+  if (!ses || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
+
+  ses.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      if (!sources.length) {
+        callback({});
+        return;
+      }
+      // Loopback is the speakers. The mic stays on getUserMedia so the two never mix.
+      callback({ video: sources[0], audio: 'loopback' });
+    } catch (error) {
+      console.error('System audio loopback failed:', error);
+      callback({});
+    }
+  });
+}
+
+const WHISPER_JUNK = new Set([
+  'you',
+  'thank you',
+  'thank you.',
+  'thanks for watching',
+  'thanks for watching.',
+  'thanks for watching!',
+  '.',
+  '...'
+]);
+
+function isUsefulTranscript(text) {
+  const cleaned = String(text || '').trim();
+  if (cleaned.length < 2) return false;
+  return !WHISPER_JUNK.has(cleaned.toLowerCase());
+}
+
+let utteranceQueue = Promise.resolve();
+
+async function handleUtterance(data) {
+  const source = data && data.source;
+  const audio = data && data.audio;
+  if ((source !== 'speaker' && source !== 'mic') || !audio) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const audioBuffer = Buffer.from(audio, 'base64');
+  if (audioBuffer.length < 1000) return;
+
+  const transcription = await llmService.transcribeAudio(audioBuffer);
+  if (!isUsefulTranscript(transcription)) return;
+
+  const text = String(transcription).trim();
+  if (source === 'mic') {
+    mainWindow.webContents.send('mic-transcript', text);
+    return;
+  }
+
+  mainWindow.webContents.send('speaker-transcript', text);
+  await getAIAnswerWithContext(text, data.resume || '', data.jobDescription || '');
 }
 
 // Update the createWindow function to handle Windows-specific settings
@@ -549,6 +610,17 @@ ipcMain.on('audio-data', async (event, base64Audio) => {
   }
 });
 
+ipcMain.on('utterance', (event, data) => {
+  utteranceQueue = utteranceQueue
+    .then(() => handleUtterance(data))
+    .catch((error) => {
+      console.error('Utterance failed:', error);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('transcription-error', error.message || 'Transcription failed');
+      }
+    });
+});
+
 // Handle get-answer-with-context IPC event
 ipcMain.on('get-answer-with-context', async (event, data) => {
   const { question, resume, jobDescription } = data;
@@ -787,7 +859,10 @@ ipcMain.handle('test-provider-connection', async (event, draftSettings) => {
 // Optimize audio processing by reducing buffer size check
 // This will make the processing faster and more responsive
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  enableSystemAudioLoopback();
+  createWindow();
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
