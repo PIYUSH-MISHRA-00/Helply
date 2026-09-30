@@ -1,42 +1,24 @@
 {
   "manifest_version": 3,
   "name": "Helply – Interview Copilot",
-  "version": "2.0.0",
-  "description": "Real-time interview copilot. Listens to the interviewer and your mic, keeps the whole interview in context, and answers with any model.",
-  "permissions": ["storage"],
+  "version": "2.1.0",
+  "description": "Interview copilot docked in the browser. It listens to the meeting tab and your microphone on its own, and stays out of a tab share.",
+  "permissions": ["storage", "tabCapture", "sidePanel"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "Open Helply",
+    "default_title": "Helply",
     "default_icon": "icon.png"
   },
   "icons": {
     "128": "icon.png"
   },
-  "commands": {
-    "toggle-hide": {
-      "suggested_key": { "default": "Alt+Shift+H" },
-      "description": "Hide or show Helply instantly"
-    }
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["guard-main.js"],
-      "world": "MAIN",
-      "run_at": "document_start",
-      "all_frames": true
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["guard.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "helply@helply.app",

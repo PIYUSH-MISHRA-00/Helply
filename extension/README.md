@@ -1,6 +1,6 @@
 # Helply – Interview Copilot (browser extension)
 
-A real-time interview copilot for Chrome, Edge, Opera, Brave, Vivaldi, and Firefox. It hears the interviewer and your microphone on its own, keeps the whole interview in context, and hands you an answer you can say right away.
+A real-time interview copilot docked in the browser’s side panel, in the same window as the meeting. It hears the meeting tab and your microphone on its own, keeps the whole interview in context, and hands you an answer you can say right away.
 
 ## Install
 
@@ -12,18 +12,15 @@ Unzip `Helply-Extension.zip` first for every browser except Firefox.
 | Edge | `edge://extensions` → turn on Developer mode → Load unpacked → pick the unzipped folder |
 | Opera | `opera://extensions` → turn on Developer mode → Load unpacked → pick the unzipped folder |
 | Brave / Vivaldi | `brave://extensions` or `vivaldi://extensions` → Developer mode → Load unpacked |
-| Firefox | `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → pick the zip or `manifest.json` |
-
-Firefox removes temporary add-ons when it closes. Internet Explorer has no extension support.
+Firefox and Internet Explorer cannot run this panel. Firefox has no side panel and cannot capture a tab’s audio, so use the desktop app there.
 
 ## Start an interview
 
-1. Click the Helply icon. Helply opens in its own window.
-2. Open **Settings** (gear icon), pick providers and models, add API keys, and **Save**.
-3. Fill in role, company, interview type, answer style, resume, and job description.
-4. Click **Start interview**. Pick the meeting tab, turn on **Share tab audio**, and allow the microphone.
+1. Click the Helply icon once. The panel opens on the right side of the same browser window.
+2. Open **Settings**, pick providers and models, add API keys, and **Save**. Fill in the role and resume if you want answers grounded in them.
+3. Open Meet, Zoom, or Teams and join. Listening starts on its own. Leaving that tab stops it, and coming back starts it again. Allow the microphone the first time only.
 
-After that there is nothing to press. When the interviewer stops talking, the answer appears.
+When the interviewer stops talking, the answer appears. Nothing to press during the call.
 
 ## How answers are laid out
 
@@ -46,11 +43,9 @@ Buttons on every card: **Shorter**, **More detail**, **Example**, **Code**, **Re
 
 ## Hidden from screen share
 
-- Helply is its own window, not part of the meeting tab. Share the meeting tab or window and nobody else sees it.
-- If the meeting page starts sharing your **entire screen**, Helply hides itself right away and comes back when the share stops. Turn this off in Settings.
-- <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd>, or the eye button, hides or shows Helply instantly.
+The panel is part of the browser, not part of the meeting tab. Share the **meeting tab** and Helply is not in that share, while you can still read it and it keeps answering.
 
-A browser extension cannot make a window invisible inside a full-screen capture. The desktop app on the `main` branch can.
+Sharing your entire screen captures the whole browser, including this panel. Chrome does not let an extension opt its side panel out of a full-screen capture. The desktop app on `main` does that: Windows excludes its window from the capture, including a full-screen share, and the window stays on your screen so you can keep reading.
 
 ## Providers
 

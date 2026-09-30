@@ -1,63 +1,38 @@
-const PANEL = 'sidepanel.html';
+const MEETING = /https?:\/\/((meet\.google\.com)|([^/]*\.zoom\.us)|(teams\.microsoft\.com)|(teams\.live\.com)|([^/]*\.webex\.com)|(whereby\.com)|(app\.around\.co))/i;
 
-async function findPanel() {
-  const wins = await chrome.windows.getAll({ populate: true });
-  return wins.find((win) => (win.tabs || []).some((tab) => String(tab.url || '').includes(PANEL))) || null;
-}
-
-async function openPanel() {
-  const existing = await findPanel();
-  if (existing) {
-    await chrome.windows.update(existing.id, { state: 'normal', focused: true });
-    return;
-  }
-  await chrome.windows.create({ url: PANEL, type: 'popup', width: 440, height: 820 });
-}
-
-async function toggleHide() {
-  const panel = await findPanel();
-  if (!panel) return openPanel();
-  const hide = panel.state !== 'minimized';
-  await chrome.windows.update(panel.id, hide ? { state: 'minimized' } : { state: 'normal', focused: true });
-}
-
-async function guardOn() {
-  const { settings } = await chrome.storage.local.get('settings');
-  return !settings || settings.guard !== false;
-}
-
-async function onShare(active, surface) {
-  const panel = await findPanel();
-  const { hiddenByGuard } = await chrome.storage.session.get('hiddenByGuard');
-  // "unknown" is treated as a full-screen share so Helply errs on the side of hiding.
-  const exposed = surface === 'monitor' || surface === 'unknown';
-
-  if (active && exposed && (await guardOn())) {
-    if (panel && panel.state !== 'minimized') await chrome.windows.update(panel.id, { state: 'minimized' });
-    await chrome.storage.session.set({ hiddenByGuard: true });
-    chrome.action.setBadgeText({ text: 'HID' });
-    chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-  } else if (!active && hiddenByGuard) {
-    await chrome.storage.session.set({ hiddenByGuard: false });
-    chrome.action.setBadgeText({ text: '' });
-    if (panel) await chrome.windows.update(panel.id, { state: 'normal' });
-  }
-  chrome.runtime.sendMessage({ type: 'guard-event', active, surface, hidden: active && exposed }).catch(() => {});
-}
-
-chrome.action.onClicked.addListener(() => {
-  openPanel().catch((error) => console.error(error));
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 });
 
-chrome.commands.onCommand.addListener((command) => {
-  if (command === 'toggle-hide') toggleHide().catch((error) => console.error(error));
+function consider(tab) {
+  if (!tab || tab.id == null || !tab.url) return;
+  chrome.runtime.sendMessage({
+    type: 'meeting-tab',
+    tab: { id: tab.id, url: tab.url, title: tab.title || '' }
+  }).catch(() => {});
+  if (MEETING.test(tab.url)) {
+    chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  }
+}
+
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+  if (change.url || change.status === 'complete') consider({ ...tab, id: tab.id ?? tabId });
 });
 
-chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message && message.type === 'share-state' && sender.tab) {
-    onShare(message.active, message.surface).catch((error) => console.error(error));
+chrome.tabs.onActivated.addListener(async (info) => {
+  try {
+    consider(await chrome.tabs.get(info.tabId));
+  } catch (error) {
+    // The tab can close before we read it.
   }
-  if (message && message.type === 'toggle-hide') {
-    toggleHide().catch((error) => console.error(error));
-  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || message.type !== 'capture-tab') return;
+  chrome.tabCapture.getMediaStreamId({ targetTabId: message.tabId }, (id) => {
+    const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+    if (err || !id) sendResponse({ ok: false, error: err || 'This page has no audio yet.' });
+    else sendResponse({ ok: true, streamId: id });
+  });
+  return true;
 });

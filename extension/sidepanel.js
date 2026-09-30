@@ -465,13 +465,21 @@ function takeAudio(source, audio) {
 
 // ---------- listening ----------
 
-function ensureListener() {
-  if (window.autoListen) return window.autoListen;
-  window.autoListen = new window.HelplyListen.AutoListen({
-    onUtterance: (source, audio) => takeAudio(source, audio),
-    onActivity: (source, on) => setLane(source === 'mic' ? 'you' : 'interviewer', undefined, on)
-  });
-  return window.autoListen;
+const MEETING = /https?:\/\/((meet\.google\.com)|([^/]*\.zoom\.us)|(teams\.microsoft\.com)|(teams\.live\.com)|([^/]*\.webex\.com)|(whereby\.com)|(app\.around\.co))/i;
+let captureTabId = null;
+let tabPlayback = null;
+let handles = [];
+let startGen = 0;
+
+function stopTracks() {
+  handles.forEach((handle) => handle.stop());
+  handles = [];
+  if (tabPlayback) {
+    tabPlayback.pause();
+    tabPlayback.srcObject = null;
+    tabPlayback = null;
+  }
+  listening = false;
 }
 
 function showAudioProblems(errors) {
@@ -482,52 +490,116 @@ function showAudioProblems(errors) {
   if (!speakerDown) setLane('interviewer', 'Listening…');
   if (!micDown) setLane('you', 'Listening…');
   const notes = [];
-  if (speakerDown) notes.push('Interviewer audio is off. Share the meeting tab with “Share tab audio” turned on.');
+  if (speakerDown) notes.push('The meeting tab has no audio yet. Join the call, then it starts on its own.');
   if (micDown) notes.push('Your microphone is off. Allow microphone access.');
   $('audioWarnText').textContent = notes.join(' ');
   $('audioWarn').classList.toggle('hidden', notes.length === 0);
 }
 
-async function startListening() {
+async function startListening(tabId) {
+  const problem = missingSetup();
+  if (problem) {
+    $('setupWarn').textContent = problem;
+    $('setupWarn').classList.remove('hidden');
+    if (!$('setupView').classList.contains('hidden')) return;
+    toast(problem);
+    return;
+  }
+  if (!session) {
+    session = { id: uid(), profile: readProfile(), turns: [], qa: [], startedAt: Date.now() };
+    persist();
+  }
+  showLive();
+  if (listening && captureTabId === tabId) return;
+  const gen = ++startGen;
+  stopTracks();
+  captureTabId = tabId || null;
+  const errors = [];
   try {
-    const result = await ensureListener().start();
-    listening = true;
-    showAudioProblems(result.errors || []);
-    setPill('Live', 'live');
-    $('btnListen').textContent = 'Pause';
-    setStatus('Listening');
+    const cap = tabId ? await chrome.runtime.sendMessage({ type: 'capture-tab', tabId }) : { ok: false, error: 'No meeting tab' };
+    if (gen !== startGen) return;
+    if (!cap || !cap.ok) throw new Error((cap && cap.error) || 'Could not hear the meeting tab');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: cap.streamId } },
+      video: false
+    });
+    tabPlayback = new Audio();
+    tabPlayback.srcObject = stream;
+    tabPlayback.play().catch(() => {});
+    let speakerHot = false;
+    let quietUntil = 0;
+    handles.push(window.HelplyListen.attachListener(stream, {
+      threshold: 0.01,
+      onHot: (hot) => {
+        if (hot) {
+          speakerHot = true;
+          return;
+        }
+        if (speakerHot) quietUntil = Date.now() + 600;
+        speakerHot = false;
+      },
+      onActivity: (on) => setLane('interviewer', undefined, on),
+      onUtterance: (audio) => takeAudio('speaker', audio)
+    }));
+    try {
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      });
+      handles.push(window.HelplyListen.attachListener(mic, {
+        threshold: 0.018,
+        isBlocked: () => speakerHot || Date.now() < quietUntil,
+        onActivity: (on) => setLane('you', undefined, on),
+        onUtterance: (audio) => takeAudio('mic', audio)
+      }));
+    } catch (error) {
+      errors.push(`Microphone: ${error.message}`);
+    }
   } catch (error) {
-    listening = false;
-    showAudioProblems(['Speaker', 'Microphone']);
-    $('audioWarnText').textContent = `${error.message}. Click Reconnect audio to try again.`;
+    stopTracks();
+    showAudioProblems([`Speaker: ${error.message}`]);
     setPill('Paused', 'paused');
     $('btnListen').textContent = 'Resume';
+    setStatus('Waiting for the meeting tab');
+    return;
   }
+  listening = true;
+  showAudioProblems(errors);
+  setPill('Live', 'live');
+  $('btnListen').textContent = 'Pause';
+  setStatus('Listening to the meeting');
 }
 
 function stopListening() {
-  if (window.autoListen) window.autoListen.stop();
-  listening = false;
+  stopTracks();
+  captureTabId = null;
   setLane('interviewer', undefined, false);
   setLane('you', undefined, false);
   setPill('Paused', 'paused');
   $('btnListen').textContent = 'Resume';
-  setStatus('Paused');
+  setStatus('Paused. It starts again when you are back on the meeting tab.');
+}
+
+function onMeetingTab(tab) {
+  if (!tab || tab.id == null) return;
+  if (MEETING.test(tab.url || '')) {
+    startListening(tab.id);
+    return;
+  }
+  if (captureTabId === tab.id) {
+    stopTracks();
+    captureTabId = null;
+    setPill('Ready', '');
+    $('btnListen').textContent = 'Resume';
+    setStatus('You left the meeting. Listening stopped, and your answers are still here.');
+  }
 }
 
 // ---------- session ----------
 
 async function startInterview() {
-  const problem = missingSetup();
-  if (problem) {
-    refreshSetupWarn();
-    openDrawer(false);
-    return;
-  }
-  session = { id: uid(), profile: readProfile(), turns: [], qa: [], startedAt: Date.now() };
-  persist();
-  showLive();
-  await startListening();
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  await startListening(tab && tab.id);
 }
 
 function endInterview() {
@@ -573,10 +645,22 @@ function wire() {
   $('drawer').addEventListener('click', (event) => {
     if (event.target === $('drawer')) closeDrawer();
   });
-  $('btnHide').addEventListener('click', () => chrome.runtime.sendMessage({ type: 'toggle-hide' }).catch(() => {}));
+  $('btnHide').addEventListener('click', () => {
+    toast('Share the meeting tab. This side panel is not part of that share.');
+  });
 
-  $('btnListen').addEventListener('click', () => (listening ? stopListening() : startListening()));
-  $('btnReconnect').addEventListener('click', startListening);
+  $('btnListen').addEventListener('click', async () => {
+    if (listening) {
+      stopListening();
+      return;
+    }
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    startListening(tab && tab.id);
+  });
+  $('btnReconnect').addEventListener('click', async () => {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    startListening(tab && tab.id);
+  });
   $('btnEnd').addEventListener('click', endInterview);
   $('btnAnswerNow').addEventListener('click', () => flushPending(false));
 
@@ -646,19 +730,7 @@ function wire() {
   });
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (!message || message.type !== 'guard-event') return;
-    const banner = $('guardBanner');
-    if (message.active && message.hidden) {
-      banner.textContent = 'You started sharing your entire screen, so Helply hid itself. Share only the meeting tab or window to keep using it.';
-      banner.className = 'banner';
-    } else if (message.active) {
-      banner.textContent = 'Screen sharing is on. Helply is not in the shared tab or window.';
-      banner.className = 'banner ok';
-    } else {
-      banner.textContent = 'Screen sharing stopped.';
-      banner.className = 'banner ok';
-      setTimeout(() => banner.classList.add('hidden'), 4000);
-    }
+    if (message && message.type === 'meeting-tab') onMeetingTab(message.tab);
   });
 }
 
@@ -675,14 +747,12 @@ async function init() {
   if (stored.session) {
     session = stored.session;
     showLive();
-    stopListening();
-    setStatus('Interview restored. Click Resume to keep listening.');
-    $('audioWarnText').textContent = 'Your interview and its context were restored.';
-    $('audioWarn').classList.remove('hidden');
-    $('btnReconnect').textContent = 'Resume listening';
+    setStatus('Open the meeting tab and listening starts on its own.');
   } else {
     showSetup();
   }
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab && MEETING.test(tab.url || '')) startListening(tab.id);
 }
 
 init().catch((error) => toast(error.message));
