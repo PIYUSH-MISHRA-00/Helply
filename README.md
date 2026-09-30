@@ -62,6 +62,23 @@ You can also configure providers inside the app Settings UI, which persists valu
 npm start
 ```
 
+## Run without a terminal (Windows)
+
+Build once:
+
+```bash
+npm run build-win
+```
+
+This writes two files to `dist/`:
+
+- `Helply AI Meeting Assistant Setup 1.0.0.exe` installs Helply, adds a desktop shortcut, and starts it.
+- `Helply-Portable.exe` runs directly with no install.
+
+After that, double-click the exe. No terminal is needed. Add your keys in Settings. They are saved to `%APPDATA%\helply-ai-assistant\.env`, not inside the app, and the build never includes your local `.env`.
+
+The taskbar icon is the Google Chrome logo. `scripts/chrome-icon.ps1` copies it from the Chrome installed on the build machine, so the logo is never committed. Without Chrome, the Helply icon is used.
+
 ## Settings Guide (UI)
 
 1. Open `Settings` from the welcome screen.

@@ -12,7 +12,7 @@
     "test": "node listen.js",
     "build": "electron-builder",
     "build-mac": "electron-builder --mac",
-    "build-win": "electron-builder --win",
+    "build-win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/chrome-icon.ps1 && electron-builder --win",
     "build-macarm": "electron-builder --mac --arm64",
     "build-all": "sh ./build-all.sh",
     "postinstall": "electron-builder install-app-deps"
@@ -46,22 +46,30 @@
       ]
     },
     "win": {
-      "icon": "assets/icons/icon.png",
+      "icon": "build/chrome-icon.png",
       "target": [
         "nsis",
-        "zip"
+        "portable"
       ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "Helply-Portable.exe"
     },
     "files": [
       "**/*",
+      "!.env",
+      "!.env.*",
       "!*.env",
-      "!*-credentials.json"
-    ],
-    "extraResources": [
-      {
-        "from": "*.env",
-        "to": ".env"
-      }
+      "!*-credentials.json",
+      "!.kilo/**",
+      "!extension/**",
+      "!dist/**",
+      "!scripts/**"
     ],
     "asarUnpack": [
       "node_modules/node-record-lpcm16/**/*"

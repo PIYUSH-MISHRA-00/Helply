@@ -2,8 +2,9 @@ const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '.env') });
+// Packaged builds are read-only, so main.js points this at the user data folder.
+const envPath = process.env.HELPLY_ENV_PATH || path.join(__dirname, '.env');
+dotenv.config({ path: envPath });
 
 // Load provider configurations
 let providersConfig;
@@ -286,7 +287,6 @@ function ensureEnvFileExists(envPath) {
 
 // Save current config to .env file
 function saveConfigToEnv() {
-  const envPath = path.join(__dirname, '.env');
   let envContent = '';
 
   ensureEnvFileExists(envPath);

@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, session, systemPreferences, desktopCapturer } = require('electron')
 const path = require('path')
 const fs = require('fs')
+if (app.isPackaged && !process.env.HELPLY_ENV_PATH) {
+  process.env.HELPLY_ENV_PATH = path.join(app.getPath('userData'), '.env')
+}
 const llmService = require('./llm-service')
 const config = require('./config')
 
@@ -107,7 +110,12 @@ function createWindow() {
     transparent: false,
     frame: true,
     skipTaskbar: false,
-    icon: path.join(__dirname, 'assets/icons/icon.png'),
+    // Packaged builds use the exe icon, which build-win sets to the Chrome logo.
+    icon: app.isPackaged
+      ? undefined
+      : fs.existsSync(path.join(__dirname, 'build/chrome-icon.png'))
+        ? path.join(__dirname, 'build/chrome-icon.png')
+        : path.join(__dirname, 'assets/icons/icon.png'),
     backgroundColor: '#FFFFFF',
     titleBarStyle: 'default',
     webPreferences: {

@@ -27,6 +27,12 @@ bin/
 # Logs
 *.log
 
+# Generated from the local Chrome install by scripts/chrome-icon.ps1
+build/chrome-icon.png
+
+# Local agent worktrees
+.kilo/
+
 # Environment variables
 .env
 *-credentials.json
