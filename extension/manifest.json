@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Helply",
-  "version": "1.1.0",
-  "description": "Listens to meeting audio and your microphone, then answers with any model you configure.",
+  "name": "Helply – Interview Copilot",
+  "version": "2.0.0",
+  "description": "Real-time interview copilot. Listens to the interviewer and your mic, keeps the whole interview in context, and answers with any model.",
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -10,12 +10,33 @@
     "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "Helply",
+    "default_title": "Open Helply",
     "default_icon": "icon.png"
   },
   "icons": {
     "128": "icon.png"
   },
+  "commands": {
+    "toggle-hide": {
+      "suggested_key": { "default": "Alt+Shift+H" },
+      "description": "Hide or show Helply instantly"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["guard-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["guard.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "helply@helply.app",
