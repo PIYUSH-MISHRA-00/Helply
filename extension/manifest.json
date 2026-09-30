@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Helply – Interview Copilot",
-  "version": "2.1.0",
-  "description": "Interview copilot docked in the browser. It listens to the meeting tab and your microphone on its own, and stays out of a tab share.",
-  "permissions": ["storage", "tabCapture", "sidePanel"],
+  "version": "2.2.0",
+  "description": "Interview copilot in a small window under your camera. It listens to the meeting tab and your microphone on its own, and gets out of the way of a screen share.",
+  "permissions": ["storage", "tabCapture"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
@@ -16,9 +16,21 @@
   "icons": {
     "128": "icon.png"
   },
-  "side_panel": {
-    "default_path": "sidepanel.html"
-  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["guard-main.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["guard.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "helply@helply.app",

@@ -26,7 +26,7 @@
       </div>
       <div class="top-actions">
         <button id="btnContext" class="icon-btn hidden" type="button" title="Interview context"><svg><use href="#i-user"/></svg></button>
-        <button id="btnHide" class="icon-btn" type="button" title="Share the meeting tab. This panel is not part of that share."><svg><use href="#i-shield"/></svg></button>
+        <button id="btnHide" class="icon-btn" type="button" title="Screen-share protection is on"><svg><use href="#i-shield"/></svg></button>
         <button id="btnSettings" class="icon-btn" type="button" title="Settings"><svg><use href="#i-gear"/></svg></button>
       </div>
     </header>
@@ -73,7 +73,8 @@
       <ol class="steps">
         <li>Open Meet, Zoom, or Teams. Listening starts and stops with that tab.</li>
         <li>Allow the microphone the first time. Nothing else to click during the call.</li>
-        <li>Share the meeting tab, not your whole screen, and this panel stays out of it.</li>
+        <li>Helply opens just under your camera, so reading looks like talking to the interviewer. Drag it anywhere and it remembers.</li>
+        <li>Share a tab and Helply stays out of it. Share your whole screen and Helply hides until the share ends.</li>
       </ol>
     </main>
 
@@ -162,7 +163,7 @@
         <section class="drawer-sec">
           <h4><svg class="inline-ic"><use href="#i-shield"/></svg> Screen-share protection</h4>
           <label class="switch"><input type="checkbox" id="guardToggle"><span class="slider"></span><span>Hide Helply when I share my entire screen</span></label>
-          <p class="muted">This panel is outside the meeting tab, so sharing that tab does not include Helply. Sharing your entire screen includes the whole browser. For a full-screen share, use the Helply desktop app: Windows leaves that window out of the capture while you can still read it.</p>
+          <p class="muted">Helply is its own window, so sharing the meeting tab never includes it. A full-screen share captures every window, and browsers do not let an extension opt out of that, so Helply minimises itself for the length of the share and comes back when it ends. To keep reading answers during a full-screen share, use the Helply desktop app: Windows leaves its window out of the capture while you still see it.</p>
         </section>
       </div>
     </aside>

@@ -597,8 +597,14 @@ function onMeetingTab(tab) {
 
 // ---------- session ----------
 
+// Helply lives in its own window, so the meeting is the active tab of a normal browser window.
+async function meetingTab() {
+  const tabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
+  return tabs.find((tab) => MEETING.test(tab.url || '')) || tabs[0];
+}
+
 async function startInterview() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const tab = await meetingTab();
   await startListening(tab && tab.id);
 }
 
@@ -646,7 +652,7 @@ function wire() {
     if (event.target === $('drawer')) closeDrawer();
   });
   $('btnHide').addEventListener('click', () => {
-    toast('Share the meeting tab. This side panel is not part of that share.');
+    toast('Tab share: Helply stays out of it. Full-screen share: Helply hides until you stop sharing.');
   });
 
   $('btnListen').addEventListener('click', async () => {
@@ -654,11 +660,11 @@ function wire() {
       stopListening();
       return;
     }
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tab = await meetingTab();
     startListening(tab && tab.id);
   });
   $('btnReconnect').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tab = await meetingTab();
     startListening(tab && tab.id);
   });
   $('btnEnd').addEventListener('click', endInterview);
@@ -731,6 +737,9 @@ function wire() {
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message && message.type === 'meeting-tab') onMeetingTab(message.tab);
+    if (message && message.type === 'share-state' && !message.active && message.surface === 'monitor') {
+      toast('Full-screen share ended. Helply is back.');
+    }
   });
 }
 
@@ -751,7 +760,7 @@ async function init() {
   } else {
     showSetup();
   }
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const tab = await meetingTab();
   if (tab && MEETING.test(tab.url || '')) startListening(tab.id);
 }
 
