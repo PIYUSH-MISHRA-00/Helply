@@ -165,7 +165,8 @@ function attachListener(stream, options) {
     }
   }
 
-  function emit() {
+  // cut is true when the speaker was still talking and the chunk was split only for length.
+  function emit(cut) {
     const frames = utterance;
     const samples = utteranceSamples;
     const rate = ctx.sampleRate;
@@ -174,7 +175,7 @@ function attachListener(stream, options) {
 
     const pcm = downsample(concatFloat32(frames), rate, TARGET_RATE);
     const wav = encodeWav(pcm, TARGET_RATE);
-    settings.onUtterance(toBase64(wav));
+    settings.onUtterance(toBase64(wav), Boolean(cut));
   }
 
   processor.onaudioprocess = (event) => {
@@ -211,11 +212,13 @@ function attachListener(stream, options) {
         settings.onActivity(false);
         emit();
       } else if ((utteranceSamples / ctx.sampleRate) * 1000 >= settings.maxMs) {
-        settings.onActivity(state.speaking);
-        emit();
-        if (state.speaking) {
+        const stillSpeaking = state.speaking;
+        emit(stillSpeaking);
+        if (stillSpeaking) {
           collecting = true;
-          settings.onActivity(true);
+          state.speaking = true;
+        } else {
+          settings.onActivity(false);
         }
       }
     }
@@ -245,10 +248,40 @@ class AutoListen {
     this.streams = [];
     this.speakerHot = false;
     this.speakerQuietUntil = 0;
+    this.paused = false;
   }
 
-  async start() {
+  get running() {
+    return this.handles.length > 0;
+  }
+
+  // Pausing keeps the captures open. Asking for screen audio again on every resume
+  // re-runs the capture prompt and has crashed the window on some Windows builds.
+  pause() {
+    this.paused = true;
+  }
+
+  resume() {
+    this.paused = false;
+  }
+
+  start() {
+    if (this.running) {
+      this.resume();
+      return Promise.resolve({ errors: [] });
+    }
+    if (!this.starting) {
+      this.starting = this.open().finally(() => { this.starting = null; });
+    }
+    return this.starting.then((result) => {
+      this.resume();
+      return result;
+    });
+  }
+
+  async open() {
     this.stop();
+    this.paused = false;
     const errors = [];
 
     // Fire both captures in the same turn so the click still counts as the user gesture.
@@ -268,9 +301,9 @@ class AutoListen {
       this.streams.push(micResult.stream);
       this.handles.push(attachListener(micResult.stream, {
         threshold: 0.018,
-        onUtterance: (audio) => this.hooks.onUtterance && this.hooks.onUtterance('mic', audio),
+        onUtterance: (audio) => this.hooks.onUtterance && this.hooks.onUtterance('mic', audio, false),
         onActivity: (active) => this.hooks.onActivity && this.hooks.onActivity('mic', active),
-        isBlocked: () => this.speakerHot || Date.now() < this.speakerQuietUntil
+        isBlocked: () => this.paused || this.speakerHot || Date.now() < this.speakerQuietUntil
       }));
     } else {
       errors.push(`Microphone: ${micResult.error.message}`);
@@ -288,7 +321,9 @@ class AutoListen {
         const speakerStream = new MediaStream(audioTracks);
         this.handles.push(attachListener(speakerStream, {
           threshold: 0.01,
-          onUtterance: (audio) => this.hooks.onUtterance && this.hooks.onUtterance('speaker', audio),
+          maxMs: 30000,
+          isBlocked: () => this.paused,
+          onUtterance: (audio, cut) => this.hooks.onUtterance && this.hooks.onUtterance('speaker', audio, cut),
           onHot: (hot) => {
             if (hot) {
               this.speakerHot = true;
@@ -320,6 +355,7 @@ class AutoListen {
     this.handles = [];
     this.streams = [];
     this.speakerHot = false;
+    this.paused = false;
   }
 }
 

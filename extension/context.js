@@ -31,8 +31,8 @@
     if (p.role) lines.push(`- Role: ${clip(p.role, 120)}`);
     if (p.company) lines.push(`- Company: ${clip(p.company, 120)}`);
     lines.push(`- Type: ${TYPES[p.type] || TYPES.general}`);
-    if (p.resume) lines.push('', `Candidate resume:\n${clip(p.resume, 3500)}`);
-    if (p.jd) lines.push('', `Job description:\n${clip(p.jd, 3000)}`);
+    if (p.resume) lines.push('', `Candidate resume:\n${clip(p.resume, 12000)}`);
+    if (p.jd) lines.push('', `Job description:\n${clip(p.jd, 8000)}`);
     lines.push(
       '',
       'Rules:',

@@ -7,6 +7,8 @@ const JUNK = new Set(['you', 'thank you', 'thank you.', 'thanks for watching', '
 const QUESTION_PAUSE_MS = 1400;
 // If the interviewer keeps talking this soon after an answer started, restart it with the full question.
 const MERGE_WINDOW_MS = 6000;
+// If no transcript follows a burst of interviewer speech (noise, a cough), answer what we have.
+const SPEECH_END_FALLBACK_MS = 2600;
 const TYPE_LABEL = { general: 'General', behavioral: 'Behavioral', technical: 'Technical', 'system-design': 'System design', hr: 'HR' };
 
 let providers = {};
@@ -431,7 +433,9 @@ function flushPending(auto) {
   ask(question, { auto });
 }
 
-function onInterviewer(text) {
+let interviewerSpeaking = false;
+
+function onInterviewer(text, cut) {
   if (active && active.auto && Date.now() - active.startedAt < MERGE_WINDOW_MS) {
     pending.unshift(active.question);
     cancelActive(true);
@@ -440,10 +444,21 @@ function onInterviewer(text) {
   pending.push(text);
   clearTimeout(pendingTimer);
   setStatus('Interviewer is asking…', true);
-  pendingTimer = setTimeout(() => flushPending(true), QUESTION_PAUSE_MS);
+  // A chunk cut only for length, or speech already under way, means the question is not finished.
+  if (!cut && !interviewerSpeaking) pendingTimer = setTimeout(() => flushPending(true), QUESTION_PAUSE_MS);
 }
 
-function onTranscript(source, text) {
+function onInterviewerActivity(on) {
+  interviewerSpeaking = on;
+  setLane('interviewer', undefined, on);
+  if (on) clearTimeout(pendingTimer);
+  else if (pending.length) {
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(() => flushPending(true), SPEECH_END_FALLBACK_MS);
+  }
+}
+
+function onTranscript(source, text, cut) {
   if (!session || !useful(text)) return;
   const who = source === 'mic' ? 'you' : 'interviewer';
   session.turns.push({ who, text: text.trim(), t: Date.now() });
@@ -451,12 +466,19 @@ function onTranscript(source, text) {
   setLane(who, text.trim(), false);
   renderTranscript();
   persist();
-  if (who === 'interviewer') onInterviewer(text.trim());
+  if (who === 'interviewer') onInterviewer(text.trim(), cut);
 }
 
-function takeAudio(source, audio) {
+function takeAudio(source, audio, cut) {
   transcribeQueue = transcribeQueue
-    .then(async () => onTranscript(source, await Llm.transcribe(runtime('transcription'), audio)))
+    .then(async () => {
+      const text = await Llm.transcribe(runtime('transcription'), audio);
+      if (useful(text)) onTranscript(source, text, cut);
+      else if (source === 'speaker' && pending.length && !cut && !interviewerSpeaking) {
+        clearTimeout(pendingTimer);
+        pendingTimer = setTimeout(() => flushPending(true), QUESTION_PAUSE_MS);
+      }
+    })
     .catch((error) => {
       setStatus('Transcription failed');
       toast(error.message || 'Transcription failed');
@@ -474,6 +496,7 @@ let startGen = 0;
 function stopTracks() {
   handles.forEach((handle) => handle.stop());
   handles = [];
+  interviewerSpeaking = false;
   if (tabPlayback) {
     tabPlayback.pause();
     tabPlayback.srcObject = null;
@@ -530,6 +553,7 @@ async function startListening(tabId) {
     let quietUntil = 0;
     handles.push(window.HelplyListen.attachListener(stream, {
       threshold: 0.01,
+      maxMs: 30000,
       onHot: (hot) => {
         if (hot) {
           speakerHot = true;
@@ -538,8 +562,8 @@ async function startListening(tabId) {
         if (speakerHot) quietUntil = Date.now() + 600;
         speakerHot = false;
       },
-      onActivity: (on) => setLane('interviewer', undefined, on),
-      onUtterance: (audio) => takeAudio('speaker', audio)
+      onActivity: onInterviewerActivity,
+      onUtterance: (audio, cut) => takeAudio('speaker', audio, cut)
     }));
     try {
       const mic = await navigator.mediaDevices.getUserMedia({
