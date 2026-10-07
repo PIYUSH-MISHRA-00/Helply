@@ -1876,8 +1876,8 @@
             if (window.autoListen) return window.autoListen;
             const { AutoListen } = require('./listen');
             window.autoListen = new AutoListen({
-                onUtterance: (source, audio, cut) => {
-                    sendIPC('utterance', { source, audio, cut: Boolean(cut) });
+                onUtterance: (source, audio, cut, paused) => {
+                    sendIPC('utterance', { source, audio, cut: Boolean(cut), paused: Boolean(paused) });
                 },
                 onActivity: (source, active) => {
                     if (active) setLiveLine(source, 'Speaking…');
@@ -1907,7 +1907,8 @@
         function stopAutoListen() {
             if (window.autoListen) window.autoListen.pause();
             setListeningUi(false);
-            updateStatus('Listening paused.');
+            const busy = /^(Writing|Interviewer)/.test(statusText.textContent);
+            if (!busy) updateStatus('Listening paused. What was already heard will still be answered.');
         }
 
         async function enterAssistant() {

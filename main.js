@@ -70,22 +70,30 @@ function flushPending() {
   pendingTimer = null
   const question = pendingQuestion.join(' ').replace(/\s+/g, ' ').trim()
   pendingQuestion = []
-  if (question) answer(question, { auto: true })
+  if (!question) return
+  // Pause must not cancel an answer that is already on its way. Ask this one when it lands.
+  if (activeAnswer) {
+    pendingQuestion = [question]
+    return
+  }
+  answer(question, { auto: true })
 }
 
-function onSpeakerText(text, cut) {
+function onSpeakerText(text, cut, paused) {
   Interview.addTurn(interview, 'speaker', text)
   send('speaker-transcript', text)
-  if (activeAnswer && activeAnswer.auto && Date.now() - activeAnswer.startedAt < MERGE_WINDOW_MS) {
+  if (!paused && activeAnswer && activeAnswer.auto && Date.now() - activeAnswer.startedAt < MERGE_WINDOW_MS) {
     pendingQuestion.unshift(activeAnswer.question)
     activeAnswer.controller.abort()
     send('answer-cancelled', { id: activeAnswer.id })
     activeAnswer = null
   }
   pendingQuestion.push(text)
-  send('answer-status', 'Interviewer is speaking…')
+  if (!paused) send('answer-status', 'Interviewer is speaking…')
   // A chunk cut only for length, or speech already under way, means the question is not finished.
-  if (cut || speakerSpeaking) clearTimeout(pendingTimer)
+  // Pause is the end of what we heard, so that part is answered.
+  if (paused) schedulePending(0)
+  else if (cut || speakerSpeaking) clearTimeout(pendingTimer)
   else schedulePending(QUESTION_PAUSE_MS)
 }
 
@@ -114,7 +122,8 @@ async function answer(question, options = {}) {
   } finally {
     if (activeAnswer && activeAnswer.id === id) activeAnswer = null
   }
-  if (!activeAnswer) send('answer-status', 'Listening')
+  if (!activeAnswer && pendingQuestion.length) flushPending()
+  else if (!activeAnswer) send('answer-status', 'Listening')
 }
 
 let utteranceQueue = Promise.resolve()
@@ -125,7 +134,7 @@ async function handleUtterance(data) {
   if ((source !== 'speaker' && source !== 'mic') || !audio) return
 
   const audioBuffer = Buffer.from(audio, 'base64')
-  if (audioBuffer.length < 1000) return
+  if (audioBuffer.length < (data.paused ? 100 : 1000)) return
 
   const transcription = await llmService.transcribeAudio(audioBuffer)
   if (!isUsefulTranscript(transcription)) {
@@ -140,7 +149,7 @@ async function handleUtterance(data) {
     send('mic-transcript', text)
     return
   }
-  onSpeakerText(text, Boolean(data.cut))
+  onSpeakerText(text, Boolean(data.cut), Boolean(data.paused))
 }
 
 ipcMain.on('utterance', (event, data) => {

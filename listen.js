@@ -178,6 +178,15 @@ function attachListener(stream, options) {
     settings.onUtterance(toBase64(wav), Boolean(cut));
   }
 
+  function flush() {
+    if (stopped || !collecting) return;
+    settings.onActivity(false);
+    const minMs = settings.minMs;
+    settings.minMs = 0;
+    emit(false);
+    settings.minMs = minMs;
+  }
+
   processor.onaudioprocess = (event) => {
     if (stopped) return;
     const input = event.inputBuffer.getChannelData(0);
@@ -229,6 +238,7 @@ function attachListener(stream, options) {
   ctx.resume().catch(() => {});
 
   return {
+    flush,
     stop() {
       stopped = true;
       processor.onaudioprocess = null;
@@ -259,6 +269,8 @@ class AutoListen {
   // re-runs the capture prompt and has crashed the window on some Windows builds.
   pause() {
     this.paused = true;
+    // Send what was already heard. The next audio callback would otherwise discard it.
+    this.handles.forEach((handle) => handle.flush());
   }
 
   resume() {
@@ -301,7 +313,7 @@ class AutoListen {
       this.streams.push(micResult.stream);
       this.handles.push(attachListener(micResult.stream, {
         threshold: 0.018,
-        onUtterance: (audio) => this.hooks.onUtterance && this.hooks.onUtterance('mic', audio, false),
+        onUtterance: (audio, cut) => this.hooks.onUtterance && this.hooks.onUtterance('mic', audio, cut, this.paused),
         onActivity: (active) => this.hooks.onActivity && this.hooks.onActivity('mic', active),
         isBlocked: () => this.paused || this.speakerHot || Date.now() < this.speakerQuietUntil
       }));
@@ -323,7 +335,7 @@ class AutoListen {
           threshold: 0.01,
           maxMs: 30000,
           isBlocked: () => this.paused,
-          onUtterance: (audio, cut) => this.hooks.onUtterance && this.hooks.onUtterance('speaker', audio, cut),
+          onUtterance: (audio, cut) => this.hooks.onUtterance && this.hooks.onUtterance('speaker', audio, cut, this.paused),
           onHot: (hot) => {
             if (hot) {
               this.speakerHot = true;
