@@ -1475,12 +1475,23 @@
             });
         }
         
-        // Function to update live transcript
-        function setLiveLine(source, text) {
+        // Spoken words stay in the live strip. "Speaking…" is only the activity mark.
+        const liveSaid = { speaker: [], mic: [] };
+
+        function setLiveLine(source, text, interim) {
             const line = source === 'mic' ? micLive : speakerLive;
-            if (line) line.textContent = text;
+            if (!line) return;
+            const said = liveSaid[source];
+            if (!interim && text) {
+                said.push(String(text));
+                if (said.length > 6) said.shift();
+            }
+            const history = said.join(' ');
+            if (interim && text === 'Speaking…') line.textContent = history ? `${history}  Speaking…` : 'Speaking…';
+            else line.textContent = history || text || '';
             liveTranscript.classList.add('active');
             if (listening) liveIndicator.classList.remove('hidden');
+            liveTranscript.scrollTop = liveTranscript.scrollHeight;
         }
 
         function setListeningUi(active) {
@@ -1880,7 +1891,7 @@
                     sendIPC('utterance', { source, audio, cut: Boolean(cut), paused: Boolean(paused) });
                 },
                 onActivity: (source, active) => {
-                    if (active) setLiveLine(source, 'Speaking…');
+                    if (active) setLiveLine(source, 'Speaking…', true);
                     if (source === 'speaker') sendIPC('speaker-activity', active);
                 },
                 onStatus: (errors) => {
@@ -1898,8 +1909,8 @@
             setListeningUi(true);
             const speakerDown = (result.errors || []).some((line) => line.startsWith('Speaker:'));
             const micDown = (result.errors || []).some((line) => line.startsWith('Microphone:'));
-            if (!speakerDown) setLiveLine('speaker', 'Listening…');
-            if (!micDown) setLiveLine('mic', 'Listening…');
+            if (!speakerDown) setLiveLine('speaker', 'Listening…', true);
+            if (!micDown) setLiveLine('mic', 'Listening…', true);
             updateStatus(`Listening. ${contextStatus()}`);
         }
 
@@ -1942,7 +1953,10 @@
                 chatMessages.removeChild(chatMessages.lastChild);
             }
             
-            // Hide transcript
+            liveSaid.speaker = [];
+            liveSaid.mic = [];
+            speakerLive.textContent = 'Waiting…';
+            micLive.textContent = 'Waiting…';
             liveTranscript.classList.remove('active');
             
             // Reset messages array except welcome message
