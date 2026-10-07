@@ -316,7 +316,11 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
       throw new Error('The API key was rejected. Check that it is copied in full and still active.')
     }
     if (!response.ok) {
-      throw new Error(json?.error?.message || responseText || response.statusText || `HTTP ${response.status}`)
+      const message = json?.error?.message || responseText || response.statusText || `HTTP ${response.status}`
+      if (json?.error?.code === 'model_not_found') {
+        throw new Error(`${message} Choose another model in Settings.`)
+      }
+      throw new Error(message)
     }
     return json
   } finally {
@@ -341,13 +345,20 @@ async function testChatConnection(runtime) {
     } else {
       const headers = { 'Content-Type': 'application/json' }
       if (runtime.apiKey) headers.Authorization = `Bearer ${runtime.apiKey}`
-      await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/chat/completions'), {
+      const body = { model: runtime.chatModel, messages: [{ role: 'user', content: 'Reply with the single word OK' }], max_tokens: 64, temperature: 0 }
+      // Reasoning models spend a 1-token budget thinking and return an empty answer.
+      if (/gpt-oss/i.test(runtime.chatModel)) body.reasoning_effort = 'low'
+      const completion = await fetchJsonWithTimeout(joinUrl(runtime.baseUrl, '/chat/completions'), {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model: runtime.chatModel, messages: [{ role: 'user', content: 'Ping' }], max_tokens: 1 })
+        body: JSON.stringify(body)
       })
+      const answer = completion?.choices?.[0]?.message?.content
+      if (!String(answer || '').trim()) {
+        return { ok: false, mode: 'chat', message: `${runtime.config.name} accepted the key, but ${runtime.chatModel} returned no answer. Choose another chat model.` }
+      }
     }
-    return { ok: true, mode: 'chat', message: `${runtime.config.name} chat connection is valid.` }
+    return { ok: true, mode: 'chat', message: `${runtime.config.name} accepted the key and answered.` }
   } catch (error) {
     return { ok: false, mode: 'chat', message: error.message || 'Chat test failed.' }
   }

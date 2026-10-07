@@ -86,7 +86,7 @@ The taskbar icon is the Google Chrome logo. `scripts/chrome-icon.ps1` copies it 
 3. Enter API keys only for providers that need them.
 4. Set base URL for local/custom providers.
 5. Set `Transcription Model` and `Chat Model` for the selected providers.
-6. Save settings.
+6. Press **Test Connection**. A working key is saved and you stay on this screen. Press **Start Assistant** after it says the key was accepted. Save settings stores the key without testing it.
 
 ## Custom provider (local or cloud)
 

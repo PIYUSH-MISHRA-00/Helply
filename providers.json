@@ -11,8 +11,8 @@
       },
       "chat": {
         "enabled": true,
-        "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "openai/gpt-oss-120b"],
-        "defaultModel": "llama-3.3-70b-versatile"
+        "models": ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"],
+        "defaultModel": "openai/gpt-oss-20b"
       },
       "apiKeyRequired": true,
       "apiKeyPrefix": "gsk_",

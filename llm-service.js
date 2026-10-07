@@ -120,7 +120,9 @@ class OpenAICompatibleProvider extends BaseProvider {
       stream: false,
       ...reasoningOptions(model)
     }, buildAuthHeaders(this.runtime.apiKey), signal);
-    return formatResponse(completion?.choices?.[0]?.message?.content);
+    const text = formatResponse(completion?.choices?.[0]?.message?.content);
+    if (!text) throw new Error(`${this.label} returned an empty answer for ${model}. In Settings, choose another chat model and press Test Connection.`);
+    return text;
   }
 }
 

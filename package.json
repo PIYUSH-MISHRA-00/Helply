@@ -1,6 +1,6 @@
 {
   "name": "helply-ai-assistant",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "AI-powered Meeting Assistant for live transcription and context-aware answers during meetings",
   "repository": {
     "type": "git",

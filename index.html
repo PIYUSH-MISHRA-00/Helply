@@ -1169,15 +1169,15 @@
                     </div>
 
                     <div class="modal-buttons">
-                        <button id="testSettings" class="discard-button">Test Connection</button>
-                        <button id="saveSettings" class="save-button">Save Settings</button>
-                        <button id="discardSettings" class="discard-button">Cancel</button>
+                        <button id="testSettings" class="discard-button" type="button">Test Connection</button>
+                        <button id="saveSettings" class="save-button" type="button">Save Settings</button>
+                        <button id="discardSettings" class="discard-button" type="button">Cancel</button>
                     </div>
                     <div id="settingsTestResult" class="settings-test-result"></div>
                 </div>
             </div>
             
-            <button class="start-btn" id="startApp">
+            <button class="start-btn" id="startApp" type="button">
                 <i class="fas fa-play"></i>
                 Start Assistant
             </button>
@@ -1628,7 +1628,7 @@
         }
 
         function openSettingsModal() {
-            electronAPI.getSettings().then(settings => {
+            return electronAPI.getSettings().then(settings => {
                 settingsSnapshot = settings || {};
                 settingsSnapshot.providerSettings = settingsSnapshot.providerSettings || {};
                 settingsSnapshot.providers = settingsSnapshot.providers || {};
@@ -1686,21 +1686,31 @@
             };
         }
 
+        function describeChecks(result) {
+            return (result?.checks || []).map((check) => `${check.mode}: ${check.ok ? 'OK' : 'Failed'}${check.message ? ` — ${check.message}` : ''}`).join(' ');
+        }
+
         async function onTestSettings() {
             const payload = buildSettingsPayloadFromForm();
             testSettings.disabled = true;
             settingsTestResult.className = 'settings-test-result';
-            settingsTestResult.textContent = 'Testing provider connection...';
+            settingsTestResult.textContent = 'Testing the key…';
 
             try {
                 const result = await electronAPI.testProviderConnection(payload);
-                const lines = (result?.checks || []).map((check) => `${check.mode}: ${check.ok ? 'OK' : 'Failed'}${check.message ? ` - ${check.message}` : ''}`);
-                settingsTestResult.textContent = lines.join(' | ') || (result?.ok ? 'Connection successful.' : 'Connection test failed.');
-                settingsTestResult.className = `settings-test-result ${result?.ok ? 'success' : 'error'}`;
+                if (result?.ok) {
+                    await electronAPI.updateSettings(payload);
+                    settingsSnapshot = { ...(settingsSnapshot || {}), ...payload };
+                    settingsTestResult.className = 'settings-test-result success';
+                    settingsTestResult.textContent = 'Key accepted and saved. Close this, then press Start Assistant.';
+                } else {
+                    settingsTestResult.className = 'settings-test-result error';
+                    settingsTestResult.textContent = describeChecks(result) || 'Connection test failed. The key was not saved.';
+                }
             } catch (error) {
                 console.error('Connection test failed:', error);
                 settingsTestResult.className = 'settings-test-result error';
-                settingsTestResult.textContent = `Test failed: ${error.message || 'Unknown error'}`;
+                settingsTestResult.textContent = `Test failed: ${error.message || 'Unknown error'}. The key was not saved.`;
             } finally {
                 testSettings.disabled = false;
             }
@@ -2059,15 +2069,41 @@
             addMessage(errorMessage, false, { error: true });
         });
 
+        settingsModal.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && event.target.matches('input, select')) {
+                event.preventDefault();
+                onTestSettings();
+            }
+        });
+
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && settingsModal.classList.contains('hidden')) {
                 event.preventDefault();
                 sendIPC('answer-now');
             }
         });
 
-        loadContext();
-        enterAssistant();
+        // A saved key is checked before the assistant opens. A failed key stays on this screen.
+        async function boot() {
+            loadContext();
+            let result = { ok: false, checks: [] };
+            try {
+                result = await electronAPI.testProviderConnection(await electronAPI.getSettings());
+            } catch (error) {
+                result = { ok: false, checks: [{ mode: 'chat', ok: false, message: error.message }] };
+            }
+            if (result.ok) {
+                enterAssistant();
+                return;
+            }
+            const problem = describeChecks(result) || 'Add your API key in Settings, then press Test Connection.';
+            document.querySelector('.product-description').textContent = problem;
+            await openSettingsModal();
+            settingsTestResult.className = 'settings-test-result error';
+            settingsTestResult.textContent = problem;
+        }
+
+        boot();
     </script>
 </body>
 </html>
