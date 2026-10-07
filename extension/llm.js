@@ -119,7 +119,8 @@
         messages: withSystem,
         temperature: 0.5,
         max_tokens: request.maxTokens || 800,
-        stream: true
+        stream: true,
+        ...(/gpt-oss/i.test(runtime.model) ? { reasoning_effort: 'low' } : {})
       })
     });
     if (!response.ok) await fail(response);

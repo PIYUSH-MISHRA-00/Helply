@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Helply – Interview Copilot",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Interview copilot in a small window under your camera. It listens to the meeting tab and your microphone on its own, and gets out of the way of a screen share.",
   "permissions": ["storage", "tabCapture"],
   "host_permissions": ["<all_urls>"],
