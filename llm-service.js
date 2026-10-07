@@ -9,297 +9,149 @@ function joinUrl(baseUrl, endpoint) {
 }
 
 function buildAuthHeaders(apiKey) {
-  if (!apiKey) {
-    return {};
-  }
-
-  return {
-    Authorization: `Bearer ${apiKey}`
-  };
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+async function fetchWithTimeout(url, options = {}, signal) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
+  const timeout = setTimeout(() => controller.abort(new Error('The AI provider took too long to reply.')), REQUEST_TIMEOUT_MS);
+  const onAbort = () => controller.abort(signal.reason);
+  if (signal) {
+    if (signal.aborted) controller.abort(signal.reason);
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-
-    return response;
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
+    if (signal) signal.removeEventListener('abort', onAbort);
   }
 }
 
-async function postJson(url, payload, headers = {}) {
+function friendlyError(providerName, status, body) {
+  if (status === 401 || status === 403) {
+    return new Error(`${providerName} rejected the API key. Open Settings and paste a valid key.`);
+  }
+  if (status === 429) {
+    return new Error(`${providerName} rate limit reached. Wait a few seconds and it will answer again.`);
+  }
+  if (status === 413) {
+    return new Error(`${providerName} said the request is too large. Shorten the resume or job description.`);
+  }
+  let message = body;
+  try {
+    message = JSON.parse(body).error.message || body;
+  } catch (error) {
+    // Not JSON, keep the raw text.
+  }
+  return new Error(`${providerName} error (${status}): ${String(message || '').slice(0, 300)}`);
+}
+
+async function postJson(providerName, url, payload, headers, signal) {
   const response = await fetchWithTimeout(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers
-    },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Request failed (${response.status}): ${errorBody || response.statusText}`);
-  }
-
+  }, signal);
+  if (!response.ok) throw friendlyError(providerName, response.status, await response.text());
   return response.json();
 }
 
-function isCodingPrompt(prompt) {
-  const lowerPrompt = String(prompt || '').toLowerCase();
-  const codeIndicators = [
-    'code', 'program', 'implement', 'function', 'class', 'algorithm',
-    'loop', 'array', 'python', 'java', 'c++', 'javascript', 'sql',
-    'develop a', 'write a', 'create a', 'build a', 'snippet', 'fibonacci',
-    'armstrong', 'prime', 'factorial', 'sort', 'search', 'print'
-  ];
-
-  return codeIndicators.some((word) => lowerPrompt.includes(word));
-}
-
-function buildSystemPrompt() {
-  return `You are an expert interview assistant that gives structured, speakable answers in an interview format.
-
-For ALL questions, provide BOTH explanations:
-1. Layman Explanation: Simple, easy-to-understand explanation as if explaining to someone without technical background (2-3 sentences)
-2. Professional Explanation: Detailed, technical explanation suitable for a professional interview setting (3-4 sentences)
-
-For coding/technical questions ALSO provide:
-3. Code Implementation: Complete, runnable code in appropriate language with proper syntax
-4. Code Walkthrough: Brief explanation of how the code works (2-3 sentences)
-
-Format your responses EXACTLY like this:
-
-## Code Implementation
-\`\`\`[language]
-[your complete code here]
-\`\`\`
-
-## Code Walkthrough
-[Explanation of how the code works]
-
-## Professional Explanation
-[Detailed technical explanation with relevant terminology]
-
-## Layman Explanation
-[Simple explanation in plain English]
-
-General rules:
-- Keep answers professional, complete, and neatly formatted
-- Do NOT stop mid-explanation or mid-code
-- For coding questions, make sure the code is runnable and complete with all necessary parts
-- Never include introductory phrases like "Sure, here's..." or similar
-- Directly start with the explanations
-- Always provide both layman and professional explanations for every question
-- Only add code section if the question is specifically asking for code`;
-}
-
-function buildMessages(prompt, conversationHistory = []) {
-  const wantsCode = isCodingPrompt(prompt);
-
-  return {
-    messages: [
-      {
-        role: 'system',
-        content: buildSystemPrompt()
-      },
-      ...conversationHistory,
-      {
-        role: 'user',
-        content: `Provide a complete interview-ready response with both layman and professional explanations${wantsCode ? ' and code implementation' : ''}:\n\n${prompt}`
-      }
-    ],
-    maxTokens: wantsCode ? 1200 : 700
-  };
-}
-
 function formatResponse(response) {
-  if (!response) return '';
+  return String(response || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^(Sure|Certainly|Great question)[^\n]*\n?/i, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
-  let normalized = String(response);
-
-  normalized = normalized.replace(/^Sure, here[^\n]*\n?/i, '');
-  normalized = normalized.replace(/^Here[^\n]*response[^\n]*\n?/i, '');
-  normalized = normalized.replace(/^I can help you with that[^\n]*\n?/i, '');
-  normalized = normalized.replace(/^Here's a concise[^\n]*\n?/i, '');
-  normalized = normalized.replace(/^Here's how you can[^\n]*\n?/i, '');
-  normalized = normalized.replace(/\n{3,}/g, '\n\n');
-
-  return normalized.trim();
+// Reasoning models spend part of max_tokens thinking; keep that short so the answer is not cut off.
+function reasoningOptions(model) {
+  return /gpt-oss/i.test(model) ? { reasoning_effort: 'low' } : {};
 }
 
 class BaseProvider {
   constructor(providerName) {
     this.providerName = providerName;
     this.runtime = getProviderRuntime(providerName);
+    this.label = this.runtime.config.name || providerName;
   }
 
-  ensureApiKey() {
-    if (this.runtime.apiKeyRequired && !this.runtime.apiKey) {
-      throw new Error(`${this.runtime.config.name} API key is required. Open Settings to add it.`);
-    }
-  }
-
-  ensureBaseUrl() {
-    if (!this.runtime.baseUrl) {
-      throw new Error(`${this.runtime.config.name} base URL is missing. Open Settings to configure it.`);
-    }
+  ensureReady(kind) {
+    const supported = kind === 'chat' ? this.runtime.supportsChat : this.runtime.supportsTranscription;
+    if (!supported) throw new Error(`${this.label} does not support ${kind === 'chat' ? 'answers' : 'transcription'}. Pick another provider in Settings.`);
+    if (this.runtime.apiKeyRequired && !this.runtime.apiKey) throw new Error(`Add your ${this.label} API key in Settings.`);
+    if (!this.runtime.baseUrl) throw new Error(`${this.label} base URL is missing. Open Settings to set it.`);
+    const model = kind === 'chat' ? this.runtime.chatModel : this.runtime.transcriptionModel;
+    if (!model) throw new Error(`No ${kind === 'chat' ? 'chat' : 'transcription'} model set for ${this.label}.`);
+    return model;
   }
 
   async transcribeAudio() {
-    throw new Error(`Transcription is not implemented for ${this.runtime.config.name}.`);
-  }
-
-  async getChatResponse() {
-    throw new Error(`Chat is not implemented for ${this.runtime.config.name}.`);
+    throw new Error(`${this.label} does not support transcription. Pick another provider in Settings.`);
   }
 }
 
 class OpenAICompatibleProvider extends BaseProvider {
   async transcribeAudio(audioBuffer) {
-    if (!this.runtime.supportsTranscription) {
-      throw new Error(`${this.runtime.config.name} does not support transcription.`);
-    }
-
-    this.ensureApiKey();
-    this.ensureBaseUrl();
-
-    const model = this.runtime.transcriptionModel;
-    if (!model) {
-      throw new Error(`No transcription model configured for ${this.runtime.config.name}.`);
-    }
-
+    const model = this.ensureReady('transcription');
     const isWav = audioBuffer.length >= 12 && audioBuffer.toString('ascii', 0, 4) === 'RIFF';
     const formData = new FormData();
     formData.append('model', model);
     formData.append('response_format', 'text');
-    formData.append(
-      'file',
-      new Blob([audioBuffer], { type: isWav ? 'audio/wav' : 'audio/webm' }),
-      isWav ? 'audio.wav' : 'audio.webm'
-    );
+    formData.append('file', new Blob([audioBuffer], { type: isWav ? 'audio/wav' : 'audio/webm' }), isWav ? 'audio.wav' : 'audio.webm');
 
-    const response = await fetchWithTimeout(
-      joinUrl(this.runtime.baseUrl, '/audio/transcriptions'),
-      {
-        method: 'POST',
-        headers: buildAuthHeaders(this.runtime.apiKey),
-        body: formData
-      }
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Transcription failed (${response.status}): ${errorBody || response.statusText}`);
-    }
-
-    const text = await response.text();
-    return String(text || '').trim();
+    const response = await fetchWithTimeout(joinUrl(this.runtime.baseUrl, '/audio/transcriptions'), {
+      method: 'POST',
+      headers: buildAuthHeaders(this.runtime.apiKey),
+      body: formData
+    });
+    if (!response.ok) throw friendlyError(this.label, response.status, await response.text());
+    return String((await response.text()) || '').trim();
   }
 
-  async getChatResponse(prompt, conversationHistory = []) {
-    if (!this.runtime.supportsChat) {
-      throw new Error(`${this.runtime.config.name} does not support chat.`);
-    }
-
-    this.ensureApiKey();
-    this.ensureBaseUrl();
-
-    const model = this.runtime.chatModel;
-    if (!model) {
-      throw new Error(`No chat model configured for ${this.runtime.config.name}.`);
-    }
-
-    const { messages, maxTokens } = buildMessages(prompt, conversationHistory);
-
-    const completion = await postJson(
-      joinUrl(this.runtime.baseUrl, '/chat/completions'),
-      {
-        model,
-        messages,
-        temperature: 0.7,
-        max_tokens: maxTokens,
-        top_p: 1,
-        stream: false
-      },
-      buildAuthHeaders(this.runtime.apiKey)
-    );
-
-    return formatResponse(completion?.choices?.[0]?.message?.content || '');
+  async chat(request, signal) {
+    const model = this.ensureReady('chat');
+    const completion = await postJson(this.label, joinUrl(this.runtime.baseUrl, '/chat/completions'), {
+      model,
+      messages: [{ role: 'system', content: request.system }, ...request.messages],
+      temperature: 0.5,
+      max_tokens: request.maxTokens,
+      stream: false,
+      ...reasoningOptions(model)
+    }, buildAuthHeaders(this.runtime.apiKey), signal);
+    return formatResponse(completion?.choices?.[0]?.message?.content);
   }
 }
 
 class AnthropicProvider extends BaseProvider {
-  async getChatResponse(prompt, conversationHistory = []) {
-    if (!this.runtime.supportsChat) {
-      throw new Error(`${this.runtime.config.name} does not support chat.`);
-    }
-
-    this.ensureApiKey();
-    this.ensureBaseUrl();
-
-    const model = this.runtime.chatModel;
-    if (!model) {
-      throw new Error('No Anthropic chat model configured.');
-    }
-
-    const { messages } = buildMessages(prompt, conversationHistory);
-
-    const anthropicMessages = messages
-      .filter((item) => item.role !== 'system')
-      .map((item) => ({ role: item.role, content: item.content }));
-
-    const response = await postJson(
-      joinUrl(this.runtime.baseUrl, '/v1/messages'),
-      {
-        model,
-        max_tokens: 1200,
-        system: buildSystemPrompt(),
-        messages: anthropicMessages
-      },
-      {
-        'x-api-key': this.runtime.apiKey,
-        'anthropic-version': '2023-06-01'
-      }
-    );
-
-    return formatResponse(response?.content?.[0]?.text || '');
+  async chat(request, signal) {
+    const model = this.ensureReady('chat');
+    const response = await postJson(this.label, joinUrl(this.runtime.baseUrl, '/v1/messages'), {
+      model,
+      max_tokens: request.maxTokens,
+      system: request.system,
+      messages: request.messages
+    }, { 'x-api-key': this.runtime.apiKey, 'anthropic-version': '2023-06-01' }, signal);
+    return formatResponse((response?.content || []).map((part) => part.text || '').join(''));
   }
 }
 
 class OllamaProvider extends BaseProvider {
-  async getChatResponse(prompt) {
-    if (!this.runtime.supportsChat) {
-      throw new Error(`${this.runtime.config.name} does not support chat.`);
-    }
-
-    this.ensureBaseUrl();
-
-    const model = this.runtime.chatModel;
-    if (!model) {
-      throw new Error('No Ollama model configured.');
-    }
-
-    const response = await postJson(joinUrl(this.runtime.baseUrl, '/api/generate'), {
+  async chat(request, signal) {
+    const model = this.ensureReady('chat');
+    const response = await postJson(this.label, joinUrl(this.runtime.baseUrl, '/api/chat'), {
       model,
-      prompt: `${buildSystemPrompt()}\n\n${prompt}`,
-      stream: false
-    });
-
-    return formatResponse(response?.response || '');
+      messages: [{ role: 'system', content: request.system }, ...request.messages],
+      stream: false,
+      options: { num_predict: request.maxTokens }
+    }, {}, signal);
+    return formatResponse(response?.message?.content);
   }
 }
 
 function createProvider(providerName) {
   const runtime = getProviderRuntime(providerName);
-
   switch (runtime.type) {
     case 'openai_compatible':
       return new OpenAICompatibleProvider(providerName);
@@ -317,22 +169,13 @@ class LLMService {
     this.configModule = require('./config');
   }
 
-  getTranscriptionProvider() {
-    return createProvider(this.configModule.config.transcriptionProvider);
-  }
-
-  getChatProvider() {
-    return createProvider(this.configModule.config.chatProvider);
-  }
-
   async transcribeAudio(audioBuffer) {
-    const provider = this.getTranscriptionProvider();
-    return provider.transcribeAudio(audioBuffer);
+    return createProvider(this.configModule.config.transcriptionProvider).transcribeAudio(audioBuffer);
   }
 
-  async getAIResponse(prompt, conversationHistory = []) {
-    const provider = this.getChatProvider();
-    return provider.getChatResponse(prompt, conversationHistory);
+  // request: { system, messages, maxTokens } from interview.buildRequest
+  async chat(request, signal) {
+    return createProvider(this.configModule.config.chatProvider).chat(request, signal);
   }
 }
 

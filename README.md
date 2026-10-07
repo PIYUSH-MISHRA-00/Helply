@@ -54,7 +54,7 @@ CHAT_PROVIDER=groq
 GROQ_API_KEY=your_key_here
 ```
 
-You can also configure providers inside the app Settings UI, which persists values back to `.env`.
+You can also configure providers inside the app Settings UI. The first launch copies `.env` into the saved settings, and from then on the app uses what you save in Settings.
 
 ### Run
 
@@ -75,7 +75,7 @@ This writes two files to `dist/`:
 - `Helply AI Meeting Assistant Setup 1.0.0.exe` installs Helply, adds a desktop shortcut, and starts it.
 - `Helply-Portable.exe` runs directly with no install.
 
-After that, double-click the exe. No terminal is needed. Add your keys in Settings. They are saved to `%APPDATA%\helply-ai-assistant\.env`, not inside the app, and the build never includes your local `.env`.
+After that, double-click the exe. No terminal is needed. Add your keys in Settings once. They are saved to `%APPDATA%\helply-ai-assistant\settings.json`, with API keys encrypted by Windows for your user account, so they are still there after closing, updating, or reinstalling the app. The build never includes your local `.env`.
 
 The taskbar icon is the Google Chrome logo. `scripts/chrome-icon.ps1` copies it from the Chrome installed on the build machine, so the logo is never committed. Without Chrome, the Helply icon is used.
 
@@ -111,12 +111,19 @@ If your custom endpoint does not support transcription, use another provider for
 ## Usage
 
 - Click `Start Assistant`. Speaker audio and the microphone listen on their own. No key to start or stop each turn.
-- Speaker audio (the other person) is transcribed and answered. Your microphone is transcribed and kept in the chat, and it is ignored while the speaker is talking.
-- The microphone button pauses or resumes listening.
+- Speaker audio (the other person) is transcribed and answered. Helply waits until the interviewer finishes, so a long question is answered once, in full, however long it runs. If they keep talking right after an answer starts, the answer restarts with the whole question.
+- Your microphone is transcribed into the **You** line and kept as context for follow-ups. It is not added to the chat, so the answer you are reading stays put. It is ignored while the speaker is talking.
+- The chat only scrolls when you are already at the bottom, and it lands on the start of the new answer.
+- The microphone button pauses or resumes listening. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> answers right away without waiting for the pause.
 - Type questions manually in the input box.
 - The window is excluded from screen capture as soon as it opens, including a full-screen share, and it stays on your screen so you can keep reading. The Hidden switch turns that off.
-- Listening starts on its own. The microphone button only pauses it.
-- Add resume/job-description context to improve responses.
+
+## Resume, job description, and context
+
+- Paste your resume and the job description from the welcome screen, or with the resume and briefcase buttons while the assistant runs. Listening keeps going while you edit. The buttons turn green when they are set.
+- Both are saved on this computer and reused on the next launch.
+- With them, answers draw on your real projects and skills and connect them to the job. Without them, Helply gives strong general answers.
+- Helply remembers the whole interview: each question and its type (intro, behavioral, technical, coding, system design, HR), the earlier answers, and what both sides said. Follow-ups like "why?" are answered in context, and earlier stories are not repeated. The reset button starts a new interview.
 
 ## Development scripts
 

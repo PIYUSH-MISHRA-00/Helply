@@ -1,6 +1,6 @@
 {
   "name": "helply-ai-assistant",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-powered Meeting Assistant for live transcription and context-aware answers during meetings",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node listen.js",
+    "test": "node listen.js && node interview.js",
     "build": "electron-builder",
     "build-mac": "electron-builder --mac",
     "build-win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/chrome-icon.ps1 && electron-builder --win",
@@ -20,10 +20,7 @@
   "author": "Piyush Mishra <PIYUSH-MISHRA-00>",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.8.4",
-    "dotenv": "^17.2.3",
-    "groq-sdk": "^0.34.0",
-    "openai": "^4.24.1"
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@electron/notarize": "^3.0.1",

@@ -931,6 +931,30 @@
             display: contents;
         }
 
+        .context-chip.filled,
+        .context-button.filled {
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.5);
+        }
+
+        .q-type {
+            display: inline-block;
+            margin-left: 0.4rem;
+            padding: 0 0.4rem;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
+            vertical-align: middle;
+        }
+
+        .message-error .message-content {
+            border: 1px solid rgba(248, 113, 113, 0.5);
+            color: #fecaca;
+        }
+
         #welcomeScreen.collapsed > :not(.context-modal) {
             display: none !important;
         }
@@ -1193,6 +1217,12 @@
                     <button id="liveSettings" class="reset-button" type="button" title="Settings">
                         <i class="fas fa-cog"></i>
                     </button>
+                    <button id="liveResume" class="reset-button context-chip" type="button" title="Resume (answers use it)">
+                        <i class="fas fa-file-alt"></i>
+                    </button>
+                    <button id="liveJob" class="reset-button context-chip" type="button" title="Job description (answers use it)">
+                        <i class="fas fa-briefcase"></i>
+                    </button>
                     <!-- Hide toggle moved here -->
                     <div class="toggle-container">
                         <div class="toggle-switch compact">
@@ -1332,130 +1362,96 @@
             </div>`;
         }
         
-        // Function to add a message to the chat
-        function addMessage(text, isUser = false) {
-            // Create message element
+        const TYPE_LABEL = { coding: 'Coding', 'system design': 'System design', behavioral: 'Behavioral', hr: 'HR', introduction: 'Intro', technical: 'Technical', general: 'General' };
+        const questionCards = new Map();
+
+        // Only follow new content when the reader is already at the bottom; never yank them away.
+        function nearBottom() {
+            return chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 80;
+        }
+
+        function addMessage(text, isUser = false, options = {}) {
+            const follow = nearBottom();
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'message-user' : 'message-ai'}`;
-            
+            messageDiv.className = `message ${isUser ? 'message-user' : 'message-ai'}${options.error ? ' message-error' : ''}`;
             const messageContent = document.createElement('div');
             messageContent.className = 'message-content';
-            
-            // Check if this is a response that might contain markdown formatting
-            // Enhanced detection to catch more markdown patterns
-            const hasMarkdown = !isUser && (text.includes('```') || text.includes('#') || text.includes('**') || text.includes('*') || 
-                           text.includes('PYTHON') || text.includes('Copy') || text.includes('PLAINTEXT'));
-            
-            if (hasMarkdown) {
-                // Format responses with markdown formatting
-                const formattedContent = convertMarkdownToHTML(text);
-                messageContent.innerHTML = formattedContent;
-            } else {
-                // For regular messages, just set the text content
-                messageContent.textContent = text;
+            if (isUser || options.error) messageContent.textContent = text;
+            else messageContent.innerHTML = convertMarkdownToHTML(text);
+            if (options.tag) {
+                const tag = document.createElement('span');
+                tag.className = 'q-type';
+                tag.textContent = options.tag;
+                messageContent.appendChild(tag);
             }
-            
             messageDiv.appendChild(messageContent);
-            
-            // Add to chat
-            chatMessages.appendChild(messageDiv);
-            
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            // Store in messages array
+            const anchor = options.after && options.after.isConnected ? options.after.nextSibling : null;
+            chatMessages.insertBefore(messageDiv, anchor);
+            if (follow) (options.scrollTo || messageDiv).scrollIntoView({ block: 'start' });
             messages.push({ text, isUser });
+            return messageDiv;
         }
-        
-        // Function to format code responses like ChatGPT
-        function formatCodeResponse(response) {
-            // Check if this has code blocks
-            const codeBlockRegex = /```(\w*)?([\s\S]*?)```/g;
-            
-            // Always format as markdown, even if no code blocks
-            return convertMarkdownToHTML(response);
+
+        function inlineMarkdown(text) {
+            return escapeHTML(text)
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
         }
-        
-        // Function to convert markdown-like formatting to HTML
+
+        // Model output is escaped before formatting, so it can never inject HTML into the window.
         function convertMarkdownToHTML(text) {
-            // First, clean up any malformed markdown patterns
-            // Handle the specific case where we see "PYTHON Copy" or "PLAINTEXT Copy"
-            text = text.replace(/(PYTHON|PLAINTEXT)\s*Copy/g, '```$1');
-            
-            // Convert code blocks first to preserve them
-            let codeBlocks = [];
-            let codeBlockCounter = 0;
-            
-            // Extract code blocks and replace with placeholders
-            // Enhanced regex to catch more variations
-            text = text.replace(/```(\w*)?([\s\S]*?)```/g, (match, language, code) => {
-                const lang = language || 'plaintext';
-                const placeholder = `{{CODEBLOCK_${codeBlockCounter}}}`;
-                codeBlocks[codeBlockCounter] = `
-                    <div class="code-block">
-                        <div class="code-header">
-                            <span class="language">${lang}</span>
-                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
-                        </div>
-                        <pre><code class="language-${lang}">${escapeHTML(code.trim())}</code></pre>
-                    </div>`;
-                codeBlockCounter++;
-                return placeholder;
+            const blocks = [];
+            const source = String(text || '').replace(/```(\w*)[^\n]*\n?([\s\S]*?)```/g, (match, language, code) => {
+                const lang = escapeHTML(language || 'code');
+                blocks.push(`<div class="code-block"><div class="code-header"><span class="language">${lang}</span><button class="copy-button" onclick="copyCode(this)">Copy</button></div><pre><code>${escapeHTML(code.replace(/\s+$/, ''))}</code></pre></div>`);
+                return `\n\u0000${blocks.length - 1}\u0000\n`;
             });
-            
-            // Convert markdown headers to HTML headers
-            text = text.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-            text = text.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-            text = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-            
-            // Convert bold and italic
-            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            
-            // Convert lists
-            text = text.replace(/^\s*\*\s*(.*)$/gm, '<li>$1</li>');
-            text = text.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
-            
-            text = text.replace(/^\s*\d+\.\s*(.*)$/gm, '<li>$1</li>');
-            text = text.replace(/(<li>.*<\/li>)/gs, '<ol>$1</ol>');
-            
-            // Handle the case where there are no double newlines by ensuring proper paragraph breaks
-            // First, add paragraph breaks before headers if they don't already exist
-            text = text.replace(/(\S)(\n#)/g, '$1\n\n$2');
-            
-            // Convert paragraphs - split by double newlines
-            const paragraphs = text.split('\n\n');
-            let formattedText = '';
-            
-            for (let i = 0; i < paragraphs.length; i++) {
-                let paragraph = paragraphs[i].trim();
-                if (paragraph) {
-                    // Replace code block placeholders
-                    for (let j = 0; j < codeBlocks.length; j++) {
-                        const placeholder = `{{CODEBLOCK_${j}}}`;
-                        if (paragraph.includes(placeholder)) {
-                            paragraph = paragraph.replace(placeholder, codeBlocks[j]);
-                        }
-                    }
-                    
-                    // If it's already HTML or contains HTML tags
-                    if (paragraph.startsWith('<h') || paragraph.startsWith('<div') || paragraph.startsWith('<p') || 
-                        paragraph.startsWith('<ul') || paragraph.startsWith('<ol') || paragraph.includes('<')) {
-                        formattedText += paragraph;
-                    } else {
-                        // Convert line breaks within paragraphs
-                        paragraph = paragraph.replace(/\n/g, '<br>');
-                        formattedText += `<p>${paragraph}</p>`;
-                    }
+
+            let html = '';
+            let list = null;
+            let paragraph = [];
+            const closeParagraph = () => {
+                if (paragraph.length) html += `<p>${paragraph.join('<br>')}</p>`;
+                paragraph = [];
+            };
+            const closeList = () => {
+                if (list) html += `</${list}>`;
+                list = null;
+            };
+
+            for (const raw of source.split('\n')) {
+                const line = raw.trim();
+                const code = line.match(/^\u0000(\d+)\u0000$/);
+                const heading = line.match(/^(#{1,4})\s+(.*)$/);
+                const bullet = line.match(/^[-*•]\s+(.*)$/);
+                const numbered = line.match(/^\d+[.)]\s+(.*)$/);
+                if (code) {
+                    closeParagraph(); closeList();
+                    html += blocks[Number(code[1])];
+                } else if (heading) {
+                    closeParagraph(); closeList();
+                    const level = Math.min(4, heading[1].length + 1);
+                    html += `<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;
+                } else if (bullet || numbered) {
+                    closeParagraph();
+                    const kind = bullet ? 'ul' : 'ol';
+                    if (list !== kind) { closeList(); html += `<${kind}>`; list = kind; }
+                    html += `<li>${inlineMarkdown((bullet || numbered)[1])}</li>`;
+                } else if (!line) {
+                    closeParagraph(); closeList();
+                } else {
+                    closeList();
+                    paragraph.push(inlineMarkdown(line));
                 }
             }
-            
-            return formattedText;
+            closeParagraph(); closeList();
+            return html;
         }
         
         // Helper function to escape HTML
         function escapeHTML(text) {
-            return text.replace(/&/g, '&amp;')
+            return String(text).replace(/&/g, '&amp;')
                       .replace(/</g, '&lt;')
                       .replace(/>/g, '&gt;')
                       .replace(/"/g, '&quot;')
@@ -1507,22 +1503,44 @@
         async function submitTypedQuestion() {
             const question = questionInput.value.trim();
             if (!question) return;
-            
-            // Add user question to chat immediately
-            addMessage(question, true);
-            
-            // Clear input
             questionInput.value = '';
-            
-            // Show loading status
-            updateStatus('Generating answer...');
-            
-            // Send question to main process for AI response with context
-            sendIPC('get-answer-with-context', {
-                question: question,
-                resume: resumeContext,
-                jobDescription: jobDescriptionContext
-            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            sendIPC('ask', { question });
+        }
+
+        // Resume and job description are kept on this computer and reused for every answer.
+        function pushContext() {
+            try {
+                localStorage.setItem('helply.context', JSON.stringify({ resume: resumeContext, jobDescription: jobDescriptionContext }));
+            } catch (error) {
+                console.error('Could not save the resume and job description:', error);
+            }
+            sendIPC('set-context', { resume: resumeContext, jobDescription: jobDescriptionContext });
+            document.getElementById('liveResume').classList.toggle('filled', Boolean(resumeContext));
+            document.getElementById('liveJob').classList.toggle('filled', Boolean(jobDescriptionContext));
+            resumeButton.classList.toggle('filled', Boolean(resumeContext));
+            jobDescriptionButton.classList.toggle('filled', Boolean(jobDescriptionContext));
+        }
+
+        function loadContext() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('helply.context') || '{}');
+                resumeContext = String(saved.resume || '');
+                jobDescriptionContext = String(saved.jobDescription || '');
+            } catch (error) {
+                resumeContext = '';
+                jobDescriptionContext = '';
+            }
+            resumeInput.value = resumeContext;
+            jobDescriptionInput.value = jobDescriptionContext;
+            pushContext();
+        }
+
+        function contextStatus() {
+            if (resumeContext && jobDescriptionContext) return 'Answers use your resume and the job description.';
+            if (resumeContext) return 'Answers use your resume.';
+            if (jobDescriptionContext) return 'Answers use the job description.';
+            return 'No resume or job description yet, so answers are general.';
         }
         
         // Context modal functions
@@ -1751,12 +1769,16 @@
         
         function saveResumeContext() {
             resumeContext = resumeInput.value.trim();
+            pushContext();
             closeResumeModal();
+            updateStatus(contextStatus());
         }
         
         function saveJobDescriptionContext() {
             jobDescriptionContext = jobDescriptionInput.value.trim();
+            pushContext();
             closeJobDescriptionModal();
+            updateStatus(contextStatus());
         }
         
         function discardResumeContext() {
@@ -1844,16 +1866,12 @@
             if (window.autoListen) return window.autoListen;
             const { AutoListen } = require('./listen');
             window.autoListen = new AutoListen({
-                onUtterance: (source, audio) => {
-                    sendIPC('utterance', {
-                        source,
-                        audio,
-                        resume: resumeContext,
-                        jobDescription: jobDescriptionContext
-                    });
+                onUtterance: (source, audio, cut) => {
+                    sendIPC('utterance', { source, audio, cut: Boolean(cut) });
                 },
                 onActivity: (source, active) => {
                     if (active) setLiveLine(source, 'Speaking…');
+                    if (source === 'speaker') sendIPC('speaker-activity', active);
                 },
                 onStatus: (errors) => {
                     if (errors && errors.length) {
@@ -1872,18 +1890,19 @@
             const micDown = (result.errors || []).some((line) => line.startsWith('Microphone:'));
             if (!speakerDown) setLiveLine('speaker', 'Listening…');
             if (!micDown) setLiveLine('mic', 'Listening…');
-            updateStatus('Listening. Speaker and microphone run on their own.');
+            updateStatus(`Listening. ${contextStatus()}`);
         }
 
+        // Pausing keeps the audio captures open, so resuming never asks Windows for screen audio again.
         function stopAutoListen() {
-            if (window.autoListen) window.autoListen.stop();
+            if (window.autoListen) window.autoListen.pause();
             setListeningUi(false);
             updateStatus('Listening paused.');
         }
 
         async function enterAssistant() {
-            resumeContext = resumeInput.value.trim();
-            jobDescriptionContext = jobDescriptionInput.value.trim();
+            if (resumeModal.classList.contains('hidden')) resumeInput.value = resumeContext;
+            if (jobDescriptionModal.classList.contains('hidden')) jobDescriptionInput.value = jobDescriptionContext;
             welcomeScreen.classList.add('collapsed');
             appContent.classList.remove('hidden');
             screenSharingToggle.checked = true;
@@ -1902,6 +1921,8 @@
 
         startAppButton.addEventListener('click', enterAssistant);
         document.getElementById('liveSettings').addEventListener('click', () => settingsButton.click());
+        document.getElementById('liveResume').addEventListener('click', openResumeModal);
+        document.getElementById('liveJob').addEventListener('click', openJobDescriptionModal);
         
         // Reset conversation
         function resetConversation() {
@@ -1917,9 +1938,8 @@
             messages = messages.slice(0, 1);
             
             // Reset status
-            updateStatus(listening ? 'Listening. Speaker and microphone run on their own.' : 'Listening paused.');
-            
-            // Tell main process to reset transcript
+            updateStatus(listening ? `Listening. ${contextStatus()}` : 'Listening paused.');
+            questionCards.clear();
             sendIPC('reset-transcript');
         }
 
@@ -1983,43 +2003,70 @@
         
         // IPC event handlers
         
+        // Raw speech goes to the live lines only; the chat holds questions and answers.
         onIPC('speaker-transcript', (event, text) => {
-            if (!text) return;
-            setLiveLine('speaker', text);
-            addMessage(text, true);
+            if (text) setLiveLine('speaker', text);
         });
 
         onIPC('mic-transcript', (event, text) => {
-            if (!text) return;
-            setLiveLine('mic', text);
-            addMessage(`You: ${text}`, true);
+            if (text) setLiveLine('mic', text);
         });
 
-        onIPC('answer', (event, text) => {
-            addMessage(text && text.trim() ? text : 'No answer received. Please try again.', false);
-            if (listening) updateStatus('Listening. Speaker and microphone run on their own.');
+        onIPC('question', (event, data) => {
+            const card = addMessage(data.text, true, { tag: data.typed ? 'Typed' : (TYPE_LABEL[data.type] || 'General') });
+            const pending = addMessage('', false, { after: card, scrollTo: card });
+            pending.querySelector('.message-content').innerHTML = showLoadingAnimation();
+            questionCards.set(data.id, { card, pending });
+        });
+
+        onIPC('answer-cancelled', (event, data) => {
+            const entry = questionCards.get(data.id);
+            if (!entry) return;
+            entry.card.remove();
+            entry.pending.remove();
+            questionCards.delete(data.id);
+        });
+
+        onIPC('answer', (event, data) => {
+            const entry = questionCards.get(data.id);
+            questionCards.delete(data.id);
+            const text = data.text && data.text.trim() ? data.text : 'No answer received. Please try again.';
+            if (!entry) {
+                addMessage(text, false, { error: data.error });
+                return;
+            }
+            const follow = nearBottom();
+            const content = entry.pending.querySelector('.message-content');
+            if (data.error) {
+                entry.pending.classList.add('message-error');
+                content.textContent = text;
+            } else {
+                content.innerHTML = convertMarkdownToHTML(text);
+            }
+            if (follow) entry.card.scrollIntoView({ block: 'start' });
         });
         
-        // Handle answer status updates
         onIPC('answer-status', (event, message) => {
-            updateStatus(message);
+            updateStatus(message === 'Listening' ? (listening ? `Listening. ${contextStatus()}` : 'Listening paused.') : message);
         });
-        
-        // Handle transcription errors
+
+        let lastError = { text: '', at: 0 };
         onIPC('transcription-error', (event, errorMessage) => {
             console.error('Transcription error:', errorMessage);
-            addMessage(`Error: ${errorMessage}`, false);
-            updateStatus('Error during transcription. Please try again.');
-        });
-        
-        // Handle system audio recording errors
-        onIPC('system-audio-recording-error', (event, errorMessage) => {
-            console.error('System audio recording error:', errorMessage);
-            addMessage(`Error: ${errorMessage}`, false);
-            updateStatus('Error during recording. Please try again.');
-            
+            updateStatus(errorMessage);
+            if (errorMessage === lastError.text && Date.now() - lastError.at < 60000) return;
+            lastError = { text: errorMessage, at: Date.now() };
+            addMessage(errorMessage, false, { error: true });
         });
 
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                sendIPC('answer-now');
+            }
+        });
+
+        loadContext();
         enterAssistant();
     </script>
 </body>

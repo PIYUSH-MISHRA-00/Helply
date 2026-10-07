@@ -237,137 +237,95 @@ function updateConfig(newConfig) {
     mergeProviderSettings('custom', { apiKey: newConfig.customApiKey });
   }
 
-  saveConfigToEnv();
+  saveSettings();
   validateConfig();
 }
 
-function upsertEnvVar(envContent, key, value) {
-  const regex = new RegExp(`^${key}=.*$`, 'm');
-  const newLine = `${key}=${serializeEnvValue(value ?? '')}`;
+// ---------- persistent settings ----------
+// Settings live in the user data folder, which survives restarts, updates, and reinstalls.
+// API keys are encrypted with the OS keychain (DPAPI on Windows) when it is available.
 
-  if (regex.test(envContent)) {
-    return envContent.replace(regex, newLine);
+let settingsPath = process.env.HELPLY_SETTINGS_PATH || '';
+let safeStorage = null;
+
+function encryptKey(value) {
+  if (!value) return { apiKey: '' };
+  if (safeStorage && safeStorage.isEncryptionAvailable()) {
+    return { apiKeyEnc: safeStorage.encryptString(value).toString('base64') };
   }
-
-  return `${envContent.trimEnd()}\n${newLine}\n`;
+  return { apiKey: value };
 }
 
-function removeEnvVarLines(envContent, keys = []) {
-  let output = envContent;
-  for (const key of keys) {
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const lineRegex = new RegExp(`^${escaped}=.*(?:\\r?\\n)?`, 'gm');
-    output = output.replace(lineRegex, '');
+function decryptKey(entry) {
+  if (entry.apiKeyEnc) {
+    try {
+      return safeStorage.decryptString(Buffer.from(entry.apiKeyEnc, 'base64'));
+    } catch (error) {
+      console.error('Could not decrypt a saved API key; enter it again in Settings.');
+      return '';
+    }
   }
-  return output;
+  return String(entry.apiKey || '');
 }
 
-function serializeEnvValue(value) {
-  const stringValue = String(value ?? '');
-  if (!stringValue) return '';
-
-  // Quote values with spaces, hash comments, quotes, equals, or line breaks.
-  if (/[#\s"=\r\n]/.test(stringValue)) {
-    return JSON.stringify(stringValue);
-  }
-
-  return stringValue;
-}
-
-function ensureEnvFileExists(envPath) {
-  const envDir = path.dirname(envPath);
-  if (!fs.existsSync(envDir)) {
-    fs.mkdirSync(envDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(envPath)) {
-    fs.writeFileSync(envPath, '', { encoding: 'utf8', mode: 0o600 });
-  }
-}
-
-// Save current config to .env file
-function saveConfigToEnv() {
-  let envContent = '';
-
-  ensureEnvFileExists(envPath);
-
-  if (fs.existsSync(envPath)) {
-    envContent = fs.readFileSync(envPath, 'utf8');
-  }
-
-  const managedKeys = [
-    'TRANSCRIPTION_PROVIDER',
-    'CHAT_PROVIDER',
-    ...providerNames.flatMap((providerName) => ([
-      getProviderEnvName(providerName, 'API_KEY'),
-      getProviderEnvName(providerName, 'BASE_URL'),
-      getProviderEnvName(providerName, 'CHAT_MODEL'),
-      getProviderEnvName(providerName, 'TRANSCRIPTION_MODEL')
-    ])),
-    'GROQ_API_KEY',
-    'OPENAI_API_KEY',
-    'ANTHROPIC_API_KEY',
-    'CUSTOM_API_KEY',
-    'CUSTOM_BASE_URL',
-    'OLLAMA_BASE_URL',
-    'LMSTUDIO_BASE_URL'
-  ];
-
-  // Remove all previous managed lines so restart cannot pick stale duplicate values.
-  envContent = removeEnvVarLines(envContent, managedKeys);
-
-  const baseUpdates = {
-    TRANSCRIPTION_PROVIDER: config.transcriptionProvider,
-    CHAT_PROVIDER: config.chatProvider
-  };
-
-  for (const [key, value] of Object.entries(baseUpdates)) {
-    envContent = upsertEnvVar(envContent, key, value);
-  }
-
+function saveSettings() {
+  if (!settingsPath) return;
+  const providers = {};
   for (const providerName of providerNames) {
     const settings = ensureProviderSettings(providerName) || {};
-
-    const updates = {
-      [getProviderEnvName(providerName, 'API_KEY')]: settings.apiKey || '',
-      [getProviderEnvName(providerName, 'BASE_URL')]: settings.baseUrl || '',
-      [getProviderEnvName(providerName, 'CHAT_MODEL')]: settings.chatModel || '',
-      [getProviderEnvName(providerName, 'TRANSCRIPTION_MODEL')]: settings.transcriptionModel || ''
+    providers[providerName] = {
+      baseUrl: settings.baseUrl || '',
+      chatModel: settings.chatModel || '',
+      transcriptionModel: settings.transcriptionModel || '',
+      ...encryptKey(settings.apiKey || '')
     };
-
-    for (const [key, value] of Object.entries(updates)) {
-      envContent = upsertEnvVar(envContent, key, value);
-    }
   }
+  const data = JSON.stringify({
+    version: 1,
+    transcriptionProvider: config.transcriptionProvider,
+    chatProvider: config.chatProvider,
+    providers
+  }, null, 2);
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  const temp = `${settingsPath}.tmp`;
+  fs.writeFileSync(temp, data, { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(temp, settingsPath);
+}
 
-  // Keep legacy keys in sync for backward compatibility
-  const legacyUpdates = {
-    GROQ_API_KEY: getApiKey('groq'),
-    OPENAI_API_KEY: getApiKey('openai'),
-    ANTHROPIC_API_KEY: getApiKey('anthropic'),
-    CUSTOM_API_KEY: getApiKey('custom'),
-    CUSTOM_BASE_URL: ensureProviderSettings('custom')?.baseUrl || '',
-    OLLAMA_BASE_URL: ensureProviderSettings('ollama')?.baseUrl || '',
-    LMSTUDIO_BASE_URL: ensureProviderSettings('lmstudio')?.baseUrl || ''
-  };
-
-  for (const [key, value] of Object.entries(legacyUpdates)) {
-    envContent = upsertEnvVar(envContent, key, value);
-  }
-
-  fs.writeFileSync(envPath, envContent.trimEnd() + '\n', { encoding: 'utf8', mode: 0o600 });
-
-  // Best-effort: keep env file private on Unix-like systems.
-  try {
-    if (process.platform !== 'win32') {
-      fs.chmodSync(envPath, 0o600);
+function applySaved(saved) {
+  if (providerMap[saved.transcriptionProvider]) config.transcriptionProvider = saved.transcriptionProvider;
+  if (providerMap[saved.chatProvider]) config.chatProvider = saved.chatProvider;
+  for (const [providerName, entry] of Object.entries(saved.providers || {})) {
+    if (!providerMap[providerName] || !entry) continue;
+    const settings = ensureProviderSettings(providerName);
+    settings.apiKey = decryptKey(entry).trim();
+    for (const key of ['baseUrl', 'chatModel', 'transcriptionModel']) {
+      if (entry[key]) settings[key] = String(entry[key]).trim();
     }
-  } catch (error) {
-    // Ignore permission hardening errors; file contents are still saved.
   }
 }
 
-// Initialize validation
+// Call once Electron is ready. Without a saved file, the .env values become the first saved settings.
+function loadSettings(options = {}) {
+  if (options.path) settingsPath = options.path;
+  if (options.safeStorage) safeStorage = options.safeStorage;
+  if (!settingsPath) return;
+  if (fs.existsSync(settingsPath)) {
+    try {
+      applySaved(JSON.parse(fs.readFileSync(settingsPath, 'utf8')));
+    } catch (error) {
+      console.error('Saved settings are unreadable, keeping defaults:', error.message);
+    }
+  } else {
+    saveSettings();
+    // The keys are now in the encrypted file; drop the plain-text copy the old version wrote.
+    if (options.migratedEnvPath && fs.existsSync(options.migratedEnvPath)) {
+      try { fs.unlinkSync(options.migratedEnvPath); } catch (error) { /* keep going */ }
+    }
+  }
+  validateConfig();
+}
+
 validateConfig();
 
 module.exports = {
@@ -378,5 +336,6 @@ module.exports = {
   getApiKey,
   getConfig,
   updateConfig,
-  validateConfig
+  validateConfig,
+  loadSettings
 };
